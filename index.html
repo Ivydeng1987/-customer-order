@@ -342,6 +342,7 @@
         <div class="modal" style="max-width:700px;">
             <h2>📥 从报价单导入货品</h2>
             <div id="importOrderListView">
+                <input type="text" id="importSearchInput" placeholder="🔍 搜索客户名/单号关键词..." oninput="renderImportOrderList()" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:30px; font-size:12px; margin-bottom:10px; outline:none;">
                 <div class="mini-list" id="importOrderList"><div class="mini-list-item">加载中...</div></div>
             </div>
             <div id="importItemsView" class="hidden">
@@ -817,6 +818,7 @@
             document.getElementById('importModal').classList.add('active');
             document.getElementById('importOrderListView').classList.remove('hidden');
             document.getElementById('importItemsView').classList.add('hidden');
+            document.getElementById('importSearchInput').value = '';
 
             let listEl = document.getElementById('importOrderList');
             listEl.innerHTML = '<div class="mini-list-item">正在加载报价单列表...</div>';
@@ -824,11 +826,21 @@
             if (!importQuoteCache) {
                 importQuoteCache = await fetchQuotationOrders();
             }
-            let list = importQuoteCache || [];
+            renderImportOrderList();
+        }
+
+        function renderImportOrderList() {
+            let listEl = document.getElementById('importOrderList');
+            let kw = (document.getElementById('importSearchInput')?.value || '').trim().toLowerCase();
+            let list = (importQuoteCache || []).filter(q => {
+                if (!kw) return true;
+                let hay = `${q.quoteNo} ${q.customerCompany || ''}`.toLowerCase();
+                return hay.includes(kw);
+            });
             list.sort((a, b) => (b.quoteNo || '').localeCompare(a.quoteNo || ''));
 
             if (list.length === 0) {
-                listEl.innerHTML = '<div class="mini-list-item">没有找到报价单数据</div>';
+                listEl.innerHTML = `<div class="mini-list-item">${kw ? '没有匹配的报价单' : '没有找到报价单数据'}</div>`;
                 return;
             }
 
