@@ -73,10 +73,14 @@
         .modal h2 { font-size: 16px; margin-bottom: 14px; }
         .mini-list { border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 14px; max-height: 240px; overflow-y: auto; }
         .mini-list-item { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+        .mini-list-item.clickable { cursor: pointer; }
+        .mini-list-item.clickable:hover { background: #f8fafc; }
         .mini-list-item:last-child { border-bottom: none; }
         .mini-list-item .info { flex: 1; }
         .mini-list-item .info b { display: block; }
         .mini-list-item .info span { color: #94a3b8; font-size: 11px; }
+        .import-item-row { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 8px; font-size: 12px; }
+        .import-item-row input[type="checkbox"] { width: auto; }
 
         .toast { position: fixed; bottom: 20px; right: 20px; background: #0e4b6e; color: white; padding: 10px 20px; border-radius: 50px; font-size: 13px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); z-index: 2000; opacity: 0; transform: translateY(20px); transition: all 0.3s ease; }
         .toast.show { opacity: 1; transform: translateY(0); }
@@ -103,6 +107,7 @@
             <h1>🧾 客户下单系统 <span>v1.0</span></h1>
             <div class="header-right">
                 <span class="sync-status success" id="syncStatus">⏳ 载入中...</span>
+                <button class="btn btn-primary" id="retrySyncBtn" onclick="retrySync()" style="display:none;">🔄 重试同步</button>
                 <button class="btn btn-outline" onclick="openCustomerModal()">👤 客户资料库</button>
                 <button class="btn btn-outline" onclick="openBankModal()">🏦 银行账号库</button>
                 <button class="btn btn-outline" onclick="backupAllData()">💾 备份全部数据</button>
@@ -225,6 +230,7 @@
                         <tbody id="itemsTableBody"></tbody>
                     </table>
                     <button class="btn btn-outline btn-sm" onclick="addItemRow()">➕ 添加一行</button>
+                    <button class="btn btn-outline btn-sm" onclick="openImportModal()">📥 从报价单导入货品</button>
                     <div class="items-total" id="itemsTotalDisplay">合计数量：0　｜　合计金额：0.00</div>
                 </div>
 
@@ -331,12 +337,33 @@
         </div>
     </div>
 
+    <!-- ========== 从报价单导入货品弹窗 ========== -->
+    <div class="modal-overlay" id="importModal">
+        <div class="modal" style="max-width:700px;">
+            <h2>📥 从报价单导入货品</h2>
+            <div id="importOrderListView">
+                <div class="mini-list" id="importOrderList"><div class="mini-list-item">加载中...</div></div>
+            </div>
+            <div id="importItemsView" class="hidden">
+                <button class="btn btn-outline btn-sm" onclick="backToImportOrderList()" style="margin-bottom:10px;">← 返回报价单列表</button>
+                <div id="importItemsList"></div>
+                <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:14px;">
+                    <button class="btn btn-primary" onclick="confirmImportItems()">✅ 导入选中的货品</button>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:10px;">
+                <button class="btn btn-outline" onclick="closeModal('importModal')">关闭</button>
+            </div>
+        </div>
+    </div>
+
     <div class="toast" id="toast"></div>
 
     <script>
         // ====== 配置信息 ======
         const STORAGE_KEY = 'customer_order_data';
         const BIN_ID = '6a7e7e1bda38895dfee28007';  // 客户下单系统专用Bin ID（不是敏感信息）
+        const QUOTATION_BIN_ID = '6a82ce05da38895dfeee1354'; // 报价系统Bin（只读，用于导入报价单货品）
         const WORKER_URL = 'https://sunlit-proxy.ivy-3fc.workers.dev'; // 中转站网址
         const ACCESS_TOKEN = 'RBhCP4O1yvwxN7nB9oMoQCzuj2ZnF3M9daOE76fRVtk'; // 中转站通行证
 
@@ -401,6 +428,28 @@
             return null;
         }
 
+        // ====== 只读拉取报价系统数据（用于导入报价单货品）======
+        let quotationCache = null;
+        async function fetchQuotationOrders() {
+            if (quotationCache) return quotationCache;
+            try {
+                let res = await fetch(`${WORKER_URL}/bin/${QUOTATION_BIN_ID}/latest`, { headers: { 'X-Access-Token': ACCESS_TOKEN } });
+                if (res.ok) {
+                    let json = await res.json();
+                    let r = json.record;
+                    if (r && typeof r === 'object' && Array.isArray(r.quotes)) {
+                        quotationCache = r.quotes.filter(q => !q.deleted);
+                        return quotationCache;
+                    }
+                }
+            } catch(e) { console.error('拉取报价系统数据失败:', e); }
+            quotationCache = [];
+            return quotationCache;
+        }
+
+        let hasPendingSync = false; // 是否有还没成功推送到云端的本地改动
+        let cloudEverLoaded = false; // 本次打开页面后，是否成功从云端读取过数据（决定"重试"时应该是重新读还是重新写）
+
         async function pushCloudData() {
             try {
                 let payload = { password: APP_PASSWORD, orders, customers, bankAccounts };
@@ -409,15 +458,64 @@
                     headers: { 'Content-Type': 'application/json', 'X-Access-Token': ACCESS_TOKEN },
                     body: JSON.stringify(payload)
                 });
-                if (res.ok) return true;
+                if (res.ok) {
+                    hasPendingSync = false;
+                    document.getElementById('syncStatus').innerText = "✅ 已同步云端";
+                    document.getElementById('syncStatus').className = "sync-status success";
+                    document.getElementById('retrySyncBtn').style.display = 'none';
+                    return true;
+                }
                 console.error("上传失败:", res.status);
+                markSyncFailed();
                 return false;
-            } catch(e) { console.error("上传错误:", e); return false; }
+            } catch(e) {
+                console.error("上传错误:", e);
+                markSyncFailed();
+                return false;
+            }
+        }
+
+        function markSyncFailed() {
+            hasPendingSync = true;
+            document.getElementById('syncStatus').innerText = "⚠️ 云端连接失败(数据已存本地)";
+            document.getElementById('syncStatus').className = "sync-status error";
+            document.getElementById('retrySyncBtn').style.display = 'inline-flex';
+        }
+
+        // 手动重试：还没成功读过云端时重试=重新读（避免拿本地空/旧数据覆盖云端）；
+        // 已经成功读过云端、是后续保存推送失败时，重试=重新推送当前数据
+        async function retrySync() {
+            let btn = document.getElementById('retrySyncBtn');
+            btn.disabled = true;
+            btn.innerText = '🔄 正在重试...';
+            let success;
+            if (!cloudEverLoaded) {
+                let cloud = await getCloudData();
+                if (cloud) {
+                    cloudEverLoaded = true;
+                    orders = cloud.orders; customers = cloud.customers; bankAccounts = cloud.bankAccounts;
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify({ orders, customers, bankAccounts }));
+                    if (cloud.password) { APP_PASSWORD = cloud.password; localStorage.setItem('cos_app_pwd', APP_PASSWORD); }
+                    document.getElementById('syncStatus').innerText = "✅ 已同步云端";
+                    document.getElementById('syncStatus').className = "sync-status success";
+                    document.getElementById('retrySyncBtn').style.display = 'none';
+                    renderList();
+                    success = true;
+                } else {
+                    success = false;
+                }
+            } else {
+                success = await pushCloudData();
+            }
+            btn.disabled = false;
+            btn.innerText = '🔄 重试同步';
+            showToast(success ? '同步成功！' : '还是没连上，请稍后再试', success ? 'success' : 'error');
         }
 
         async function preloadCloud() {
             let cloud = await getCloudData();
             if (cloud) {
+                cloudEverLoaded = true;
                 orders = cloud.orders;
                 customers = cloud.customers;
                 bankAccounts = cloud.bankAccounts;
@@ -438,6 +536,7 @@
                     document.getElementById('syncStatus').innerText = "📂 空系统";
                 }
                 document.getElementById('syncStatus').className = "sync-status error";
+                document.getElementById('retrySyncBtn').style.display = 'inline-flex';
             }
             let btn = document.getElementById('unlockBtn');
             btn.disabled = false;
@@ -688,6 +787,19 @@
             });
             return items;
         }
+        // 批量追加货品行（用于导入），不会清空已有的行；如果表格里只有一行空白占位行，先把它去掉再追加
+        function appendItems(items) {
+            if (!items || !items.length) return;
+            let body = document.getElementById('itemsTableBody');
+            let rows = body.querySelectorAll('tr');
+            if (rows.length === 1) {
+                let r = rows[0];
+                let allEmpty = ['item-name','item-size','item-qty'].every(cls => !r.querySelector('.' + cls).value.trim());
+                if (allEmpty) r.remove();
+            }
+            items.forEach(it => addItemRow(it));
+            updateItemsTotal();
+        }
 
         // ====== 订单号生成 ======
         function genOrderNo() {
@@ -695,6 +807,101 @@
             let sameDay = orders.filter(o => o.orderNo && o.orderNo.startsWith(`SL${today}T`));
             let seq = (sameDay.length + 1).toString().padStart(3, '0');
             return `SL${today}T${seq}`;
+        }
+
+        // ====== 从报价单导入货品（不做"只能用一次"限制，报价单可以被反复引用）======
+        let importQuoteCache = null;
+        let importSelectedQuote = null;
+
+        async function openImportModal() {
+            document.getElementById('importModal').classList.add('active');
+            document.getElementById('importOrderListView').classList.remove('hidden');
+            document.getElementById('importItemsView').classList.add('hidden');
+
+            let listEl = document.getElementById('importOrderList');
+            listEl.innerHTML = '<div class="mini-list-item">正在加载报价单列表...</div>';
+
+            if (!importQuoteCache) {
+                importQuoteCache = await fetchQuotationOrders();
+            }
+            let list = importQuoteCache || [];
+            list.sort((a, b) => (b.quoteNo || '').localeCompare(a.quoteNo || ''));
+
+            if (list.length === 0) {
+                listEl.innerHTML = '<div class="mini-list-item">没有找到报价单数据</div>';
+                return;
+            }
+
+            listEl.innerHTML = list.map(q => {
+                let itemCount = (q.items || []).length;
+                return `<div class="mini-list-item clickable" onclick='selectImportQuote(${JSON.stringify(q.quoteNo)})'>
+                    <div class="info"><b>${escapeHtml(q.quoteNo)}　${escapeHtml(q.customerCompany || '')}</b><span>${escapeHtml(q.series)} ｜ ${formatDate(q.quoteDate)} ｜ ${itemCount}条货品</span></div>
+                    <span>→</span>
+                </div>`;
+            }).join('');
+        }
+
+        // 不同产品系列的报价单字段结构不一样，统一映射成客户下单系统的 品名/尺寸/单位/数量/单价 结构
+        function mapQuoteItemToOrderItem(it) {
+            let sizeParts = [it.spec, it.keySpec].filter(Boolean);
+            return {
+                name: it.name || '',
+                size: sizeParts.join('\n'),
+                unit: '',
+                qty: it.qty || '',
+                price: it.price || ''
+            };
+        }
+
+        function selectImportQuote(quoteNo) {
+            let quote = (importQuoteCache || []).find(q => q.quoteNo === quoteNo);
+            if (!quote) return;
+            importSelectedQuote = quote;
+
+            document.getElementById('importOrderListView').classList.add('hidden');
+            document.getElementById('importItemsView').classList.remove('hidden');
+
+            let items = quote.items || [];
+            let html = items.map((it, i) => {
+                let mapped = mapQuoteItemToOrderItem(it);
+                let qtyNote = mapped.qty ? `数量:${escapeHtml(mapped.qty)}` : '（报价单未填数量，导入后请手动填写）';
+                return `<div class="import-item-row">
+                    <input type="checkbox" class="import-check" data-idx="${i}" checked>
+                    <span>${escapeHtml(mapped.name)}　${escapeHtml((mapped.size||'').replace(/\n/g,' / '))}　${qtyNote}</span>
+                </div>`;
+            }).join('');
+            document.getElementById('importItemsList').innerHTML = html || '<div class="import-item-row">该报价单没有货品明细</div>';
+        }
+
+        function backToImportOrderList() {
+            document.getElementById('importOrderListView').classList.remove('hidden');
+            document.getElementById('importItemsView').classList.add('hidden');
+        }
+
+        function confirmImportItems() {
+            if (!importSelectedQuote) return;
+            let checks = document.querySelectorAll('.import-check:checked');
+            let items = importSelectedQuote.items || [];
+            let toImport = [];
+            checks.forEach(c => {
+                let idx = parseInt(c.dataset.idx);
+                let it = items[idx];
+                if (it) toImport.push(mapQuoteItemToOrderItem(it));
+            });
+            if (toImport.length === 0) { showToast('请至少选择一条货品', 'error'); return; }
+
+            appendItems(toImport);
+            // 报价单没有单独存币种到货品行，但整份报价单是有币种的——如果当前订单还没选币种，顺带带过去
+            if (importSelectedQuote.currency) {
+                let curSel = document.getElementById('fCurrencySelect');
+                if (curSel && !document.getElementById('fCurrencyCustom').value) {
+                    setCurrencySelect(importSelectedQuote.currency);
+                    updateItemsTotal();
+                }
+            }
+
+            closeModal('importModal');
+            showToast(`已导入 ${toImport.length} 条货品，如果报价单里没有填数量的，请记得手动补上`);
         }
 
         // ====== 视图切换 ======
