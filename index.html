@@ -136,6 +136,7 @@
                             <th>客户名称</th>
                             <th>总数量</th>
                             <th>总金额</th>
+                            <th>总成本(内部)</th>
                             <th>交期</th>
                             <th>是否逾期</th>
                             <th>订单完成</th>
@@ -226,7 +227,7 @@
                 <div class="form-group">
                     <label>货品明细</label>
                     <table class="items-table" id="itemsTable">
-                        <thead><tr><th style="width:28%">品名</th><th style="width:16%">尺寸/规格</th><th style="width:10%">单位</th><th style="width:10%">数量</th><th style="width:14%">单价</th><th style="width:14%">金额</th><th style="width:5%"></th></tr></thead>
+                        <thead><tr><th style="width:22%">品名</th><th style="width:13%">尺寸/规格</th><th style="width:8%">单位</th><th style="width:8%">数量</th><th style="width:11%">单价</th><th style="width:11%">金额</th><th style="width:12%">采购成本(内部)</th><th style="width:10%">总成本(内部)</th><th style="width:5%"></th></tr></thead>
                         <tbody id="itemsTableBody"></tbody>
                     </table>
                     <button class="btn btn-outline btn-sm" onclick="addItemRow()">➕ 添加一行</button>
@@ -745,7 +746,7 @@
 
         // ====== 货品明细行 ======
         function addItemRow(item) {
-            item = item || { name: '', size: '', unit: '', qty: '', price: '' };
+            item = item || { name: '', size: '', unit: '', qty: '', price: '', cost: '', costAmount: '' };
             let tbody = document.getElementById('itemsTableBody');
             let tr = document.createElement('tr');
             tr.innerHTML = `
@@ -755,6 +756,8 @@
                 <td><input type="text" class="item-qty" value="${escapeHtml(item.qty)}" oninput="updateItemsTotal()"></td>
                 <td><input type="text" class="item-price" value="${escapeHtml(item.price)}" oninput="updateItemsTotal()"></td>
                 <td><input type="text" class="item-amount" value="${escapeHtml(item.amount || '')}" readonly style="background:#f8fafc;"></td>
+                <td><input type="text" class="item-cost" value="${escapeHtml(item.cost)}" oninput="updateItemsTotal()" style="background:#fff8e6;" title="内部采购成本，可以从报价单的成本价导入，也可以手动改，不影响给客户看的单价"></td>
+                <td><input type="text" class="item-costAmount" value="${escapeHtml(item.costAmount || '')}" readonly style="background:#f8fafc;" title="采购成本×数量"></td>
                 <td><button class="del-row" onclick="this.closest('tr').remove(); updateItemsTotal();">🗑️</button></td>
             `;
             tbody.appendChild(tr);
@@ -762,17 +765,21 @@
         }
         function updateItemsTotal() {
             let rows = document.querySelectorAll('#itemsTableBody tr');
-            let totalQty = 0, totalAmount = 0;
+            let totalQty = 0, totalAmount = 0, totalCost = 0;
             rows.forEach(r => {
                 let qty = parseFloat(r.querySelector('.item-qty').value) || 0;
                 let price = parseFloat(r.querySelector('.item-price').value) || 0;
+                let cost = parseFloat(r.querySelector('.item-cost').value) || 0;
                 let amount = qty * price;
+                let costAmount = qty * cost;
                 r.querySelector('.item-amount').value = amount ? amount.toFixed(2) : '';
+                r.querySelector('.item-costAmount').value = costAmount ? costAmount.toFixed(2) : '';
                 totalQty += qty;
                 totalAmount += amount;
+                totalCost += costAmount;
             });
             let currency = getCurrencyValue();
-            document.getElementById('itemsTotalDisplay').innerText = `合计数量：${totalQty}　｜　合计金额：${totalAmount.toFixed(2)} ${currency}`;
+            document.getElementById('itemsTotalDisplay').innerText = `合计数量：${totalQty}　｜　合计金额：${totalAmount.toFixed(2)} ${currency}　｜　合计采购成本(内部)：${totalCost.toFixed(2)}`;
         }
         function getItemsFromForm() {
             let rows = document.querySelectorAll('#itemsTableBody tr');
@@ -784,7 +791,9 @@
                 let qty = r.querySelector('.item-qty').value.trim();
                 let price = r.querySelector('.item-price').value.trim();
                 let amount = r.querySelector('.item-amount').value.trim();
-                if (name || size || qty) items.push({ name, size, unit, qty, price, amount });
+                let cost = r.querySelector('.item-cost').value.trim();
+                let costAmount = r.querySelector('.item-costAmount').value.trim();
+                if (name || size || qty) items.push({ name, size, unit, qty, price, amount, cost, costAmount });
             });
             return items;
         }
@@ -853,7 +862,8 @@
             }).join('');
         }
 
-        // 不同产品系列的报价单字段结构不一样，统一映射成客户下单系统的 品名/尺寸/单位/数量/单价 结构
+        // 不同产品系列的报价单字段结构不一样，统一映射成客户下单系统的 品名/尺寸/单位/数量/单价 结构；
+        // 报价单的成本价(内部字段)也一并带过来，作为客户下单系统这边的"采购成本"初始值，方便后续采购环节直接用
         function mapQuoteItemToOrderItem(it) {
             let sizeParts = [it.spec, it.keySpec].filter(Boolean);
             return {
@@ -861,7 +871,8 @@
                 size: sizeParts.join('\n'),
                 unit: '',
                 qty: it.qty || '',
-                price: it.price || ''
+                price: it.price || '',
+                cost: it.cost || ''
             };
         }
 
@@ -1123,12 +1134,13 @@
                         <td>${o.orderNo} <span class="badge badge-overdue">已删除</span></td>
                         <td>${escapeHtml(o.customerShort) || '—'}</td>
                         <td>${escapeHtml(o.customerCompany) || '—'}</td>
-                        <td colspan="6" style="color:#94a3b8;">删除时间：${formatDate(o.deletedAt)}</td>
+                        <td colspan="7" style="color:#94a3b8;">删除时间：${formatDate(o.deletedAt)}</td>
                         <td>—</td>
                     </tr>`;
                 }
                 let totalQty = (o.items || []).reduce((s, it) => s + (parseFloat(it.qty) || 0), 0);
                 let totalAmount = (o.items || []).reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
+                let totalCost = (o.items || []).reduce((s, it) => s + (parseFloat(it.costAmount) || 0), 0);
                 let isOverdue = o.deliveryDate && o.deliveryDate < today && !o.completed;
                 return `<tr class="${isOverdue ? 'overdue-row' : ''}">
                     <td><span class="order-link" onclick="openOrderDetail('${o.orderNo}')">${o.orderNo}</span></td>
@@ -1136,6 +1148,7 @@
                     <td>${escapeHtml(o.customerCompany)}</td>
                     <td>${totalQty}</td>
                     <td>${totalAmount.toFixed(2)} ${escapeHtml(o.currency || 'USD')}</td>
+                    <td>${totalCost ? totalCost.toFixed(2) : '—'}</td>
                     <td>${formatDate(o.deliveryDate)}</td>
                     <td>${isOverdue ? '<span class="badge badge-overdue">⚠️ 逾期</span>' : '<span class="badge badge-yes">正常</span>'}</td>
                     <td>${o.completed ? '<span class="badge badge-yes">已完成</span>' : '<span class="badge badge-no">未完成</span>'}</td>
@@ -1144,7 +1157,7 @@
                     <td><button class="btn btn-outline btn-sm" onclick="duplicateOrderFromList('${o.orderNo}')">📋 复制</button></td>
                 </tr>`;
             }).join('');
-            document.getElementById('orderTableBody').innerHTML = html || '<tr><td colspan="11" style="padding:30px;text-align:center;">暂无订单</td></tr>';
+            document.getElementById('orderTableBody').innerHTML = html || '<tr><td colspan="12" style="padding:30px;text-align:center;">暂无订单</td></tr>';
         }
 
         // ====== 历史价格查询 ======
