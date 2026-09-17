@@ -2,9 +2,9 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow, noarchive">
-    <title>采购跟单系统 v2.0</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>客户下单系统 v1.0</title>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style/dist/xlsx.bundle.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -45,7 +45,6 @@
         .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
         .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
         .checkbox-row input { width: auto; }
-        .reschedule-hint { background: #fef3c7; padding: 10px 14px; border-radius: 8px; font-size: 12px; color: #92400e; margin-bottom: 12px; }
 
         .items-table { width: 100%; border-collapse: collapse; margin-bottom: 6px; font-size: 12px; }
         .items-table th { background: #f8fafc; padding: 6px 8px; text-align: left; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0; }
@@ -55,7 +54,7 @@
         .items-total { text-align: right; font-size: 13px; font-weight: 600; color: #0e4b6e; margin-bottom: 12px; padding: 8px 12px; background: #f0f9ff; border-radius: 8px; }
 
         .table-wrapper { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06); overflow-x: auto; }
-        table.list-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 950px; }
+        table.list-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 900px; }
         table.list-table th { background: #f8fafc; padding: 8px 10px; text-align: left; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0; }
         table.list-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
         table.list-table tr:hover td { background: #fafbfc; }
@@ -65,7 +64,6 @@
         .badge-yes { background: #dcfce7; color: #16a34a; }
         .badge-no { background: #fef3c7; color: #d97706; }
         .badge-overdue { background: #fee2e2; color: #dc2626; }
-        .badge-reschedule { background: #fef3c7; color: #92400e; }
 
         .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; align-items: center; }
         .toolbar input[type="text"] { padding: 6px 14px; border: 1px solid #e2e8f0; border-radius: 30px; font-size: 12px; outline: none; width: 200px; }
@@ -84,7 +82,6 @@
         .mini-list-item .info span { color: #94a3b8; font-size: 11px; }
         .import-item-row { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 8px; font-size: 12px; }
         .import-item-row input[type="checkbox"] { width: auto; }
-        .badge-used { background: #e2e8f0; color: #64748b; display: inline-block; padding: 2px 10px; border-radius: 30px; font-size: 11px; font-weight: 500; }
 
         .toast { position: fixed; bottom: 20px; right: 20px; background: #0e4b6e; color: white; padding: 10px 20px; border-radius: 50px; font-size: 13px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); z-index: 2000; opacity: 0; transform: translateY(20px); transition: all 0.3s ease; }
         .toast.show { opacity: 1; transform: translateY(0); }
@@ -100,7 +97,7 @@
 <body>
     <div class="lock-screen" id="lockScreen">
         <div class="lock-box">
-            <h2>🔒 采购跟单系统</h2>
+            <h2>🔒 客户下单系统</h2>
             <input type="password" id="passwordInput" placeholder="请输入密码" autofocus>
             <button id="unlockBtn" disabled>正在校验云端密码...</button>
         </div>
@@ -108,11 +105,12 @@
 
     <div class="container hidden" id="mainContent">
         <div class="header">
-            <h1>📋 采购跟单系统 <span>v2.0</span></h1>
+            <h1>🧾 客户下单系统 <span>v1.0</span></h1>
             <div class="header-right">
                 <span class="sync-status success" id="syncStatus">⏳ 载入中...</span>
                 <button class="btn btn-primary" id="retrySyncBtn" onclick="retrySync()" style="display:none;">🔄 重试同步</button>
-                <button class="btn btn-outline" onclick="openSupplierModal()">🏭 供应商资料库</button>
+                <button class="btn btn-outline" onclick="openCustomerModal()">👤 客户资料库</button>
+                <button class="btn btn-outline" onclick="openBankModal()">🏦 银行账号库</button>
                 <button class="btn btn-outline" onclick="backupAllData()">💾 备份全部数据</button>
                 <button class="btn btn-outline" onclick="document.getElementById('importBackupFile').click()">📥 导入备份数据</button>
                 <input type="file" id="importBackupFile" accept=".json" style="display:none;" onchange="importBackupData(event)">
@@ -124,26 +122,29 @@
         <!-- ========== 列表视图 ========== -->
         <div id="listView">
             <div class="toolbar">
-                <input type="text" id="searchInput" placeholder="🔍 搜索供应商/单号..." oninput="renderList()">
+                <input type="text" id="searchInput" placeholder="🔍 搜索客户/单号..." oninput="renderList()">
+                <select id="filterCountry" onchange="renderList()"><option value="">全部国家</option></select>
                 <select id="filterYear" onchange="renderList()"><option value="">全部年份</option></select>
                 <label class="checkbox-row" style="margin-left:4px;"><input type="checkbox" id="showDeletedCheckbox" onchange="renderList()"> 显示已删除订单</label>
                 <div style="flex:1;"></div>
                 <button class="btn btn-outline" onclick="openPriceHistoryModal()">📊 历史价格查询</button>
-                <button class="btn btn-primary" onclick="openOrderDetail(null)">➕ 新建采购单</button>
+                <button class="btn btn-outline" onclick="openAiImportModal()">🤖 AI导入订单</button>
+                <button class="btn btn-primary" onclick="openOrderDetail(null)">➕ 新建订单</button>
             </div>
             <div class="table-wrapper">
                 <table class="list-table">
                     <thead>
                         <tr>
                             <th>订单号</th>
-                            <th>供应商简称</th>
+                            <th>客户简称</th>
+                            <th>客户名称</th>
                             <th>总数量</th>
                             <th>总金额</th>
+                            <th>总成本(内部)</th>
                             <th>交期</th>
                             <th>是否逾期</th>
-                            <th>逾期后跟进日</th>
                             <th>订单完成</th>
-                            <th>是否付款</th>
+                            <th>是否完款</th>
                             <th>备注</th>
                             <th>操作</th>
                         </tr>
@@ -156,63 +157,99 @@
         <!-- ========== 订单详情视图 ========== -->
         <div id="detailView" class="hidden">
             <div class="card">
-                <h2 id="detailTitle">📝 新建采购单</h2>
-
-                <div id="rescheduleHint" class="reschedule-hint hidden">⚠️ 该订单已逾期，请填写"逾期后跟进日期"后再保存</div>
+                <h2 id="detailTitle">📝 新建订单</h2>
 
                 <div class="form-row-3">
                     <div class="form-group"><label>订单号</label><input type="text" id="fOrderNo" disabled placeholder="保存时自动生成"></div>
                     <div class="form-group"><label>下单日期</label><input type="date" id="fOrderDate"></div>
                     <div class="form-group"><label>交期</label><input type="date" id="fDeliveryDate"></div>
                 </div>
-                <div class="form-group hidden" id="rescheduleDateGroup">
-                    <label>📅 逾期后跟进日期 *</label><input type="date" id="fFollowUpDate">
-                </div>
+                <div class="form-group"><label>交货时间说明（用于PI导出，如："10 workdays"）</label><input type="text" id="fDeliveryTimeText" placeholder="如：10 workdays"></div>
 
                 <div class="form-group">
-                    <label>选择供应商（从供应商资料库自动填充，也可直接手动填写下方信息）</label>
-                    <select id="fSupplierSelect" onchange="fillSupplierFromSelect()">
-                        <option value="">-- 手动填写 / 选择已有供应商 --</option>
+                    <label>选择客户（从客户资料库自动填充，也可直接手动填写下方信息）</label>
+                    <input type="text" id="fCustomerSearchInput" placeholder="🔍 输入关键词筛选客户（公司名/简称/联系人/国家）" oninput="filterCustomerSelect()" style="margin-bottom:6px;">
+                    <select id="fCustomerSelect" onchange="fillCustomerFromSelect()">
+                        <option value="">-- 手动填写 / 选择已有客户 --</option>
                     </select>
                 </div>
                 <div class="form-row-3">
-                    <div class="form-group"><label>公司名 *</label><input type="text" id="fSupplierCompany"></div>
-                    <div class="form-group"><label>供应商简称</label><input type="text" id="fSupplierShort"></div>
-                    <div class="form-group"><label>联系人</label><input type="text" id="fSupplierContact"></div>
+                    <div class="form-group"><label>公司名 *</label><input type="text" id="fCustomerCompany"></div>
+                    <div class="form-group"><label>客户简称</label><input type="text" id="fCustomerShort"></div>
+                    <div class="form-group"><label>国家</label><input type="text" id="fCustomerCountry"></div>
                 </div>
+                <div class="form-row-3">
+                    <div class="form-group"><label>联系人</label><input type="text" id="fCustomerContact"></div>
+                    <div class="form-group"><label>电话</label><input type="text" id="fCustomerPhone"></div>
+                    <div class="form-group"><label>邮箱</label><input type="text" id="fCustomerEmail"></div>
+                </div>
+                <div class="form-group"><label>具体地址</label><input type="text" id="fCustomerAddress"></div>
+
                 <div class="form-row">
-                    <div class="form-group"><label>电话</label><input type="text" id="fSupplierPhone"></div>
-                    <div class="form-group"><label>地址</label><input type="text" id="fSupplierAddress"></div>
+                    <div class="form-group">
+                        <label>价格条款</label>
+                        <select id="fPriceTermSelect" onchange="togglePriceTermCustom()">
+                            <option value="FOB Shenzhen">FOB Shenzhen</option>
+                            <option value="CIF">CIF</option>
+                            <option value="EXW">EXW</option>
+                            <option value="FCA">FCA</option>
+                            <option value="custom">手动输入...</option>
+                        </select>
+                        <input type="text" id="fPriceTermCustom" placeholder="请输入价格条款" style="margin-top:6px;display:none;">
+                    </div>
+                    <div class="form-group">
+                        <label>付款条款</label>
+                        <select id="fPaymentTermSelect" onchange="togglePaymentTermCustom()">
+                            <option value="30% deposit, 70% before shipment">30%定金，70%发货前付清</option>
+                            <option value="100% before shipment">100%发货前付清</option>
+                            <option value="custom">手动输入...</option>
+                        </select>
+                        <input type="text" id="fPaymentTermCustom" placeholder="请输入付款条款" style="margin-top:6px;display:none;">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>收款银行账户</label>
+                        <select id="fBankSelect" onchange="syncCurrencyFromBank()">
+                            <option value="">-- 请选择 --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>币种</label>
+                        <select id="fCurrencySelect" onchange="toggleCurrencyCustom()">
+                            <option value="USD">USD</option>
+                            <option value="CNY">CNY（人民币）</option>
+                            <option value="THB">THB（泰铢）</option>
+                            <option value="HKD">HKD</option>
+                            <option value="EUR">EUR</option>
+                            <option value="custom">手动输入...</option>
+                        </select>
+                        <input type="text" id="fCurrencyCustom" placeholder="请输入币种代码，如VND" style="margin-top:6px;display:none;">
+                    </div>
                 </div>
 
                 <div class="form-group">
                     <label>货品明细</label>
                     <table class="items-table" id="itemsTable">
-                        <thead><tr><th style="width:32%">品名</th><th style="width:20%">尺寸/规格</th><th style="width:16%">单价</th><th style="width:16%">数量</th><th style="width:16%">金额</th><th style="width:5%"></th></tr></thead>
+                        <thead><tr><th style="width:22%">品名</th><th style="width:13%">尺寸/规格</th><th style="width:8%">单位</th><th style="width:8%">数量</th><th style="width:11%">单价</th><th style="width:11%">金额</th><th style="width:12%">采购成本(内部)</th><th style="width:10%">总成本(内部)</th><th style="width:5%"></th></tr></thead>
                         <tbody id="itemsTableBody"></tbody>
                     </table>
                     <button class="btn btn-outline btn-sm" onclick="addItemRow()">➕ 添加一行</button>
-                    <button class="btn btn-outline btn-sm" id="translateNamesBtn" onclick="translateItemNames()">🌐 翻译品名</button>
+                    <button class="btn btn-outline btn-sm" onclick="openImportModal()">📥 从报价单导入货品</button>
                     <div class="items-total" id="itemsTotalDisplay">合计数量：0　｜　合计金额：0.00</div>
                 </div>
 
                 <div class="form-row">
-                    <div class="form-group"><label>包装要求</label><textarea id="fPacking" rows="2"></textarea></div>
-                    <div class="form-group"><label>图纸备注（非标定制，如图纸编号/文件名，不上传实际图片）</label><textarea id="fDrawingNote" rows="2"></textarea></div>
-                </div>
-
-                <div class="form-row">
                     <div class="checkbox-row"><input type="checkbox" id="fCompleted"> <label for="fCompleted">订单已完成</label></div>
-                    <div class="checkbox-row"><input type="checkbox" id="fPaid"> <label for="fPaid">已付款</label></div>
+                    <div class="checkbox-row"><input type="checkbox" id="fPaid"> <label for="fPaid">已完款</label></div>
                 </div>
 
                 <div class="form-group"><label>备注</label><textarea id="fRemark" rows="2"></textarea></div>
-                <input type="hidden" id="fWasOverdue" value="0">
 
                 <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
                     <button class="btn btn-primary" id="saveOrderBtn" onclick="saveOrder()">💾 保存订单</button>
-                    <button class="btn btn-outline" onclick="exportOrderContract()">📥 导出订购合同</button>
-                    <button class="btn btn-outline" onclick="openImportModal()">📥 从客户订单导入货品</button>
+                    <button class="btn btn-outline" onclick="exportOrderPi()">📥 导出PI</button>
                     <button class="btn btn-outline" id="copyOrderBtn" onclick="copyCurrentOrder()" style="display:none;">📋 复制为新订单</button>
                     <button class="btn btn-outline" onclick="backToList()">← 返回列表</button>
                     <button class="btn btn-danger" id="deleteOrderBtn" onclick="deleteCurrentOrder()" style="display:none;">🗑️ 删除订单</button>
@@ -221,23 +258,55 @@
         </div>
     </div>
 
-    <!-- ========== 供应商资料库弹窗 ========== -->
-    <div class="modal-overlay" id="supplierModal">
+    <!-- ========== 客户资料库弹窗 ========== -->
+    <div class="modal-overlay" id="customerModal">
         <div class="modal">
-            <h2>🏭 供应商资料库</h2>
-            <div class="mini-list" id="supplierList"></div>
+            <h2>👤 客户资料库</h2>
+            <input type="text" id="custModalSearchInput" placeholder="🔍 搜索公司名/简称/联系人/国家..." oninput="renderCustomerList()" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:30px; font-size:12px; margin-bottom:10px; outline:none;">
+            <div class="mini-list" id="customerList"></div>
             <div class="form-row-3">
-                <div class="form-group"><label>公司名</label><input type="text" id="newSupCompany"></div>
-                <div class="form-group"><label>供应商简称</label><input type="text" id="newSupShort"></div>
-                <div class="form-group"><label>联系人</label><input type="text" id="newSupContact"></div>
+                <div class="form-group"><label>公司名</label><input type="text" id="newCustCompany"></div>
+                <div class="form-group"><label>客户简称</label><input type="text" id="newCustShort"></div>
+                <div class="form-group"><label>国家</label><input type="text" id="newCustCountry"></div>
+            </div>
+            <div class="form-row-3">
+                <div class="form-group"><label>联系人</label><input type="text" id="newCustContact"></div>
+                <div class="form-group"><label>电话</label><input type="text" id="newCustPhone"></div>
+                <div class="form-group"><label>邮箱</label><input type="text" id="newCustEmail"></div>
+            </div>
+            <div class="form-group"><label>具体地址</label><input type="text" id="newCustAddr"></div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button class="btn btn-outline" onclick="closeModal('customerModal')">关闭</button>
+                <button class="btn btn-primary" onclick="addCustomer()">➕ 添加客户</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 银行账号库弹窗 ========== -->
+    <div class="modal-overlay" id="bankModal">
+        <div class="modal">
+            <h2>🏦 银行账号库</h2>
+            <div class="mini-list" id="bankList"></div>
+            <div class="form-row">
+                <div class="form-group"><label>账户别名（用于下拉选择显示）</label><input type="text" id="newBankAlias" placeholder="如：美元账户-DBS香港"></div>
+                <div class="form-group"><label>币种（多币种账户用逗号分隔）</label><input type="text" id="newBankCurrency" placeholder="如：USD 或 USD, THB, CNY"></div>
             </div>
             <div class="form-row">
-                <div class="form-group"><label>电话</label><input type="text" id="newSupPhone"></div>
-                <div class="form-group"><label>地址</label><input type="text" id="newSupAddress"></div>
+                <div class="form-group"><label>Bank Account Name（开户名）</label><input type="text" id="newBankAccName"></div>
+                <div class="form-group"><label>Bank Account No.（账号）</label><input type="text" id="newBankAccNo"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Bank Name（开户行）</label><input type="text" id="newBankName"></div>
+                <div class="form-group"><label>SWIFT Code</label><input type="text" id="newBankSwift"></div>
+            </div>
+            <div class="form-group"><label>Bank Address（开户行地址）</label><input type="text" id="newBankAddress"></div>
+            <div class="form-row">
+                <div class="form-group"><label>Account Type（账户类型）</label><input type="text" id="newBankAccType"></div>
+                <div class="form-group"><label>Beneficiary Bank Code（可选）</label><input type="text" id="newBankCode"></div>
             </div>
             <div style="display:flex; gap:10px; justify-content:flex-end;">
-                <button class="btn btn-outline" onclick="closeModal('supplierModal')">关闭</button>
-                <button class="btn btn-primary" onclick="addSupplier()">➕ 添加供应商</button>
+                <button class="btn btn-outline" onclick="closeModal('bankModal')">关闭</button>
+                <button class="btn btn-primary" onclick="addBank()">➕ 添加账户</button>
             </div>
         </div>
     </div>
@@ -247,8 +316,8 @@
         <div class="modal" style="max-width:800px;">
             <h2>📊 历史价格查询</h2>
             <div class="form-group">
-                <label>供应商</label>
-                <select id="phSupplierSelect"><option value="">-- 请选择供应商 --</option></select>
+                <label>客户</label>
+                <select id="phCustomerSelect"><option value="">-- 请选择客户 --</option></select>
             </div>
             <div class="form-row">
                 <div class="form-group">
@@ -267,23 +336,24 @@
             <div class="table-wrapper">
                 <table class="list-table" style="min-width:600px;">
                     <thead>
-                        <tr><th>下单日期</th><th>订单号</th><th>品名</th><th>尺寸/规格</th><th>数量</th><th>单价</th></tr>
+                        <tr><th>订单日期</th><th>订单号</th><th>品名</th><th>尺寸/规格</th><th>单位</th><th>数量</th><th>单价</th></tr>
                     </thead>
-                    <tbody id="priceHistoryBody"><tr><td colspan="6" style="padding:20px;text-align:center;">请选择供应商后点查询</td></tr></tbody>
+                    <tbody id="priceHistoryBody"><tr><td colspan="7" style="padding:20px;text-align:center;">请选择客户后点查询</td></tr></tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- ========== 从客户订单导入货品弹窗 ========== -->
+    <!-- ========== 从报价单导入货品弹窗 ========== -->
     <div class="modal-overlay" id="importModal">
         <div class="modal" style="max-width:700px;">
-            <h2>📥 从客户订单导入货品</h2>
+            <h2>📥 从报价单导入货品</h2>
             <div id="importOrderListView">
+                <input type="text" id="importSearchInput" placeholder="🔍 搜索客户名/单号关键词..." oninput="renderImportOrderList()" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:30px; font-size:12px; margin-bottom:10px; outline:none;">
                 <div class="mini-list" id="importOrderList"><div class="mini-list-item">加载中...</div></div>
             </div>
             <div id="importItemsView" class="hidden">
-                <button class="btn btn-outline btn-sm" onclick="backToImportOrderList()" style="margin-bottom:10px;">← 返回订单列表</button>
+                <button class="btn btn-outline btn-sm" onclick="backToImportOrderList()" style="margin-bottom:10px;">← 返回报价单列表</button>
                 <div id="importItemsList"></div>
                 <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:14px;">
                     <button class="btn btn-primary" onclick="confirmImportItems()">✅ 导入选中的货品</button>
@@ -295,31 +365,44 @@
         </div>
     </div>
 
+    <!-- ========== AI导入订单弹窗 ========== -->
+    <div class="modal-overlay" id="aiImportModal">
+        <div class="modal" style="max-width:640px;">
+            <h2>🤖 AI导入订单</h2>
+            <div class="form-group">
+                <label>把客户发来的订单原文粘贴在这里（邮件、聊天记录都可以，中英文不限）</label>
+                <textarea id="aiImportText" rows="10" placeholder="例如：&#10;Dear Ivy, please arrange below order:&#10;End Mill R3*12*D6*50L*2F, qty 200pcs, USD 3.5/pc&#10;..."></textarea>
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button class="btn btn-outline" onclick="closeModal('aiImportModal')">取消</button>
+                <button class="btn btn-primary" id="aiImportBtn" onclick="parseAiOrderText()">🤖 AI解析并录入</button>
+            </div>
+        </div>
+    </div>
+
     <div class="toast" id="toast"></div>
 
     <script>
         // ====== 配置信息 ======
-        const STORAGE_KEY = 'procurement_orders_v2';
-        const BIN_ID = '6a7af37ef5f4af5e29068975';  // 沿用原有采购跟单系统的Bin
-        const CUSTOMER_ORDER_BIN_ID = '6a7e7e1bda38895dfee28007';  // 客户下单系统Bin（只读，用于导入）
-        const WORKER_URL = 'https://sunlit-proxy.ivy-3fc.workers.dev';
-        const ACCESS_TOKEN = 'RBhCP4O1yvwxN7nB9oMoQCzuj2ZnF3M9daOE76fRVtk';
+        const STORAGE_KEY = 'customer_order_data';
+        const BIN_ID = '6a7e7e1bda38895dfee28007';  // 客户下单系统专用Bin ID（不是敏感信息）
+        const QUOTATION_BIN_ID = '6a82ce05da38895dfeee1354'; // 报价系统Bin（只读，用于导入报价单货品）
+        const WORKER_URL = 'https://sunlit-proxy.ivy-3fc.workers.dev'; // 中转站网址
+        const ACCESS_TOKEN = 'RBhCP4O1yvwxN7nB9oMoQCzuj2ZnF3M9daOE76fRVtk'; // 中转站通行证
 
-        // 采购方固定信息（你们自己公司，导出合同时使用——中文版，对应国内供应商采购场景）
-        const BUYER = {
-            name: '深圳市三励安特科技有限公司',
-            address: '深圳市龙岗区布吉',
-            tel: '18476323881',
-            contact: '邓小姐'
+        // 卖方固定信息（你们自己公司，导出PI时使用）
+        const SELLER = {
+            name: 'Shenzhen Sunlit Tools Co.,LTD',
+            address: 'NO.39 Hexing Street, Buji,Longgang, Shenzhen, China 518112',
+            tel: '0755-28703533/0086-18476323881',
+            contact: 'Ivy'
         };
 
         let orders = [];
-        let suppliers = [];
-        let usedCustomerOrderItems = []; // 已经从客户订单勾选导入过的货品记录 [{customerOrderNo, name, size, usedAt}]，仅提示不强制拦截
-        let importCache = null;
-        let importSelectedOrder = null;
-        let APP_PASSWORD = localStorage.getItem('my_app_pwd') || 'admin123';
-        let currentOrderNo = null;
+        let customers = [];
+        let bankAccounts = [];
+        let APP_PASSWORD = localStorage.getItem('cos_app_pwd') || 'admin123';
+        let currentOrderNo = null; // 当前详情页正在编辑的订单号，null表示新建
 
         // ====== 锁屏 ======
         document.getElementById('unlockBtn').onclick = function() {
@@ -340,7 +423,7 @@
             let p = prompt("新密码：");
             if (p && p.trim()) {
                 APP_PASSWORD = p.trim();
-                localStorage.setItem('my_app_pwd', APP_PASSWORD);
+                localStorage.setItem('cos_app_pwd', APP_PASSWORD);
                 pushCloudData();
                 showToast('密码已改，已同步到云端');
             }
@@ -353,16 +436,14 @@
                 if (res.ok) {
                     let json = await res.json();
                     let r = json.record;
-                    if (r && typeof r === 'object' && !Array.isArray(r)) {
+                    if (r && typeof r === 'object') {
                         return {
                             password: r.password || null,
                             orders: Array.isArray(r.orders) ? r.orders : [],
-                            suppliers: Array.isArray(r.suppliers) ? r.suppliers : [],
-                            usedCustomerOrderItems: Array.isArray(r.usedCustomerOrderItems) ? r.usedCustomerOrderItems : []
+                            customers: Array.isArray(r.customers) ? r.customers : [],
+                            bankAccounts: Array.isArray(r.bankAccounts) ? r.bankAccounts : []
                         };
                     }
-                    // 兼容旧格式（v1的任务数组）：识别到旧格式后直接视为空的新结构，旧数据不做迁移
-                    return { password: null, orders: [], suppliers: [], usedCustomerOrderItems: [] };
                 } else {
                     console.log(`拉取失败，状态码: ${res.status}`);
                 }
@@ -370,12 +451,31 @@
             return null;
         }
 
-        let hasPendingSync = false;
-        let cloudEverLoaded = false;
+        // ====== 只读拉取报价系统数据（用于导入报价单货品）======
+        let quotationCache = null;
+        async function fetchQuotationOrders() {
+            if (quotationCache) return quotationCache;
+            try {
+                let res = await fetch(`${WORKER_URL}/bin/${QUOTATION_BIN_ID}/latest`, { headers: { 'X-Access-Token': ACCESS_TOKEN } });
+                if (res.ok) {
+                    let json = await res.json();
+                    let r = json.record;
+                    if (r && typeof r === 'object' && Array.isArray(r.quotes)) {
+                        quotationCache = r.quotes.filter(q => !q.deleted);
+                        return quotationCache;
+                    }
+                }
+            } catch(e) { console.error('拉取报价系统数据失败:', e); }
+            quotationCache = [];
+            return quotationCache;
+        }
+
+        let hasPendingSync = false; // 是否有还没成功推送到云端的本地改动
+        let cloudEverLoaded = false; // 本次打开页面后，是否成功从云端读取过数据（决定"重试"时应该是重新读还是重新写）
 
         async function pushCloudData() {
             try {
-                let payload = { password: APP_PASSWORD, orders, suppliers, usedCustomerOrderItems };
+                let payload = { password: APP_PASSWORD, orders, customers, bankAccounts };
                 let res = await fetch(`${WORKER_URL}/bin/${BIN_ID}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', 'X-Access-Token': ACCESS_TOKEN },
@@ -405,6 +505,8 @@
             document.getElementById('retrySyncBtn').style.display = 'inline-flex';
         }
 
+        // 手动重试：还没成功读过云端时重试=重新读（避免拿本地空/旧数据覆盖云端）；
+        // 已经成功读过云端、是后续保存推送失败时，重试=重新推送当前数据
         async function retrySync() {
             let btn = document.getElementById('retrySyncBtn');
             btn.disabled = true;
@@ -414,9 +516,9 @@
                 let cloud = await getCloudData();
                 if (cloud) {
                     cloudEverLoaded = true;
-                    orders = cloud.orders; suppliers = cloud.suppliers; usedCustomerOrderItems = cloud.usedCustomerOrderItems;
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify({ orders, suppliers, usedCustomerOrderItems }));
-                    if (cloud.password) { APP_PASSWORD = cloud.password; localStorage.setItem('my_app_pwd', APP_PASSWORD); }
+                    orders = cloud.orders; customers = cloud.customers; bankAccounts = cloud.bankAccounts;
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify({ orders, customers, bankAccounts }));
+                    if (cloud.password) { APP_PASSWORD = cloud.password; localStorage.setItem('cos_app_pwd', APP_PASSWORD); }
                     document.getElementById('syncStatus').innerText = "✅ 已同步云端";
                     document.getElementById('syncStatus').className = "sync-status success";
                     document.getElementById('retrySyncBtn').style.display = 'none';
@@ -433,30 +535,17 @@
             showToast(success ? '同步成功！' : '还是没连上，请稍后再试', success ? 'success' : 'error');
         }
 
-        // ====== 只读拉取客户下单系统数据（用于导入货品）======
-        async function fetchCustomerOrders() {
-            try {
-                let res = await fetch(`${WORKER_URL}/bin/${CUSTOMER_ORDER_BIN_ID}/latest`, { headers: { 'X-Access-Token': ACCESS_TOKEN } });
-                if (res.ok) {
-                    let json = await res.json();
-                    let r = json.record;
-                    if (r && typeof r === 'object' && Array.isArray(r.orders)) return r.orders;
-                }
-            } catch(e) { console.error('拉取客户订单失败:', e); }
-            return [];
-        }
-
         async function preloadCloud() {
             let cloud = await getCloudData();
             if (cloud) {
                 cloudEverLoaded = true;
                 orders = cloud.orders;
-                suppliers = cloud.suppliers;
-                usedCustomerOrderItems = cloud.usedCustomerOrderItems;
-                localStorage.setItem(STORAGE_KEY, JSON.stringify({ orders, suppliers, usedCustomerOrderItems }));
+                customers = cloud.customers;
+                bankAccounts = cloud.bankAccounts;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({ orders, customers, bankAccounts }));
                 if (cloud.password) {
                     APP_PASSWORD = cloud.password;
-                    localStorage.setItem('my_app_pwd', APP_PASSWORD);
+                    localStorage.setItem('cos_app_pwd', APP_PASSWORD);
                 }
                 document.getElementById('syncStatus').innerText = "✅ 已同步云端";
                 document.getElementById('syncStatus').className = "sync-status success";
@@ -464,7 +553,7 @@
                 let local = localStorage.getItem(STORAGE_KEY);
                 if (local) {
                     let d = JSON.parse(local);
-                    orders = d.orders || []; suppliers = d.suppliers || []; usedCustomerOrderItems = d.usedCustomerOrderItems || [];
+                    orders = d.orders || []; customers = d.customers || []; bankAccounts = d.bankAccounts || [];
                     document.getElementById('syncStatus').innerText = "⚠️ 本地数据(云端无数据)";
                 } else {
                     document.getElementById('syncStatus').innerText = "📂 空系统";
@@ -479,17 +568,18 @@
         preloadCloud();
 
         function saveAll() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({ orders, suppliers, usedCustomerOrderItems }));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ orders, customers, bankAccounts }));
             pushCloudData();
         }
 
+        // 导出全部数据为JSON文件，作为额外的手动备份（云端数据不受代码更新影响，这个纯粹是给自己多一份保险）
         function backupAllData() {
-            let payload = { exportedAt: new Date().toISOString(), orders, suppliers, usedCustomerOrderItems };
+            let payload = { exportedAt: new Date().toISOString(), orders, customers, bankAccounts };
             let blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
             let url = URL.createObjectURL(blob);
             let a = document.createElement('a');
             a.href = url;
-            a.download = `采购跟单系统_备份_${getToday()}.json`;
+            a.download = `客户下单系统_备份_${getToday()}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -529,21 +619,21 @@
                     showToast('文件格式不对，这不是一份有效的备份文件', 'error');
                     return;
                 }
-                if (!Array.isArray(backup.orders) && !Array.isArray(backup.suppliers)) {
-                    showToast('文件里没有找到订单或供应商数据，确认是不是采购跟单系统导出的备份文件', 'error');
+                if (!Array.isArray(backup.orders) && !Array.isArray(backup.customers) && !Array.isArray(backup.bankAccounts)) {
+                    showToast('文件里没有找到订单/客户/银行账号数据，确认是不是客户下单系统导出的备份文件', 'error');
                     return;
                 }
 
                 let addedOrders = mergeArrayByKey(orders, backup.orders, o => o.orderNo);
-                let addedSuppliers = mergeArrayByKey(suppliers, backup.suppliers, s => s.id);
-                let addedUsage = mergeArrayByKey(usedCustomerOrderItems, backup.usedCustomerOrderItems, u => itemUsageKey(u.customerOrderNo, u.name, u.size));
+                let addedCustomers = mergeArrayByKey(customers, backup.customers, c => c.id);
+                let addedBanks = mergeArrayByKey(bankAccounts, backup.bankAccounts, b => b.id);
 
-                if (addedOrders === 0 && addedSuppliers === 0 && addedUsage === 0) {
+                if (addedOrders === 0 && addedCustomers === 0 && addedBanks === 0) {
                     showToast('导入完成，但备份里的记录当前数据里都已经有了，没有新增任何内容');
                 } else {
                     saveAll();
                     renderList();
-                    showToast(`导入完成：新增 ${addedOrders} 份订单、${addedSuppliers} 个供应商`);
+                    showToast(`导入完成：新增 ${addedOrders} 份订单、${addedCustomers} 个客户、${addedBanks} 个银行账户`);
                 }
             } catch (e) {
                 showToast('导入失败，文件可能已损坏或格式不对：' + e.message, 'error');
@@ -566,72 +656,212 @@
         }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
-        // ====== 供应商资料库 ======
-        function openSupplierModal() {
-            renderSupplierList();
-            document.getElementById('supplierModal').classList.add('active');
+        // ====== 客户资料库 ======
+        function openCustomerModal() {
+            document.getElementById('custModalSearchInput').value = '';
+            renderCustomerList();
+            document.getElementById('customerModal').classList.add('active');
         }
-        function renderSupplierList() {
-            let html = suppliers.map((s, i) => `
+        function renderCustomerList() {
+            let kw = (document.getElementById('custModalSearchInput')?.value || '').trim().toLowerCase();
+            let list = customers;
+            if (kw) {
+                list = customers.filter(c => {
+                    let hay = `${c.company || ''} ${c.shortName || ''} ${c.contact || ''} ${c.country || ''} ${c.email || ''}`.toLowerCase();
+                    return hay.includes(kw);
+                });
+            }
+            // 删除按钮里的下标要对应customers原数组，不能用过滤后list的下标，否则关键词搜索时会删错人
+            let html = list.map((c) => {
+                let realIdx = customers.indexOf(c);
+                return `
                 <div class="mini-list-item">
-                    <div class="info"><b>${s.shortName ? escapeHtml(s.shortName) + '　' : ''}${escapeHtml(s.company)}</b><span>${escapeHtml(s.contact) || '—'} ｜ ${escapeHtml(s.phone) || '—'}</span></div>
-                    <button class="btn btn-danger btn-sm" onclick="deleteSupplier(${i})">删除</button>
+                    <div class="info"><b>${c.shortName ? escapeHtml(c.shortName) + '　' : ''}${escapeHtml(c.company)}</b><span>${escapeHtml(c.country) || '—'} ｜ ${escapeHtml(c.contact) || '—'} ｜ ${escapeHtml(c.phone) || '—'}</span></div>
+                    <button class="btn btn-danger btn-sm" onclick="deleteCustomer(${realIdx})">删除</button>
                 </div>
-            `).join('');
-            document.getElementById('supplierList').innerHTML = html || '<div class="mini-list-item">暂无供应商，请在下方添加</div>';
+            `;
+            }).join('');
+            document.getElementById('customerList').innerHTML = html || `<div class="mini-list-item">${kw ? '没有匹配的客户' : '暂无客户，请在下方添加'}</div>`;
         }
-        function addSupplier() {
-            let company = document.getElementById('newSupCompany').value.trim();
+        function addCustomer() {
+            let company = document.getElementById('newCustCompany').value.trim();
             if (!company) { showToast('请填写公司名', 'error'); return; }
-            suppliers.push({
-                id: 's_' + Date.now(),
+            customers.push({
+                id: 'c_' + Date.now(),
                 company,
-                shortName: document.getElementById('newSupShort').value.trim(),
-                contact: document.getElementById('newSupContact').value.trim(),
-                phone: document.getElementById('newSupPhone').value.trim(),
-                address: document.getElementById('newSupAddress').value.trim()
+                shortName: document.getElementById('newCustShort').value.trim(),
+                country: document.getElementById('newCustCountry').value.trim(),
+                contact: document.getElementById('newCustContact').value.trim(),
+                phone: document.getElementById('newCustPhone').value.trim(),
+                email: document.getElementById('newCustEmail').value.trim(),
+                address: document.getElementById('newCustAddr').value.trim()
             });
             saveAll();
-            renderSupplierList();
-            populateSupplierSelect();
-            ['newSupCompany','newSupShort','newSupContact','newSupPhone','newSupAddress'].forEach(id => document.getElementById(id).value = '');
-            showToast('供应商已添加');
+            renderCustomerList();
+            populateCustomerSelect();
+            ['newCustCompany','newCustShort','newCustCountry','newCustContact','newCustPhone','newCustEmail','newCustAddr'].forEach(id => document.getElementById(id).value = '');
+            showToast('客户已添加');
         }
-        function deleteSupplier(idx) {
-            if (!confirm('删除这个供应商资料？')) return;
-            suppliers.splice(idx, 1);
+        function deleteCustomer(idx) {
+            if (!confirm('删除这个客户资料？')) return;
+            customers.splice(idx, 1);
             saveAll();
-            renderSupplierList();
-            populateSupplierSelect();
+            renderCustomerList();
+            populateCustomerSelect();
         }
-        function populateSupplierSelect() {
-            let sel = document.getElementById('fSupplierSelect');
-            sel.innerHTML = '<option value="">-- 手动填写 / 选择已有供应商 --</option>' +
-                suppliers.map(s => `<option value="${s.id}">${escapeHtml(s.shortName ? s.shortName + ' - ' : '')}${escapeHtml(s.company)}</option>`).join('');
+        // list参数可选：传入时按这个筛选后的列表渲染下拉框（用于客户快速检索筛选），不传则渲染全部
+        function populateCustomerSelect(list) {
+            let sourceList = list || customers;
+            let sel = document.getElementById('fCustomerSelect');
+            let prevValue = sel.value;
+            sel.innerHTML = '<option value="">-- 手动填写 / 选择已有客户 --</option>' +
+                sourceList.map(c => `<option value="${c.id}">${escapeHtml(c.shortName ? c.shortName + ' - ' : '')}${escapeHtml(c.company)}</option>`).join('');
+            // 筛选后如果之前选中的客户还在筛选结果里，保留选中状态，避免筛选一下就把已选的客户冲掉
+            if (prevValue && sourceList.some(c => c.id === prevValue)) sel.value = prevValue;
         }
-        function fillSupplierFromSelect() {
-            let id = document.getElementById('fSupplierSelect').value;
-            let s = suppliers.find(x => x.id === id);
-            if (s) {
-                document.getElementById('fSupplierCompany').value = s.company || '';
-                document.getElementById('fSupplierShort').value = s.shortName || '';
-                document.getElementById('fSupplierContact').value = s.contact || '';
-                document.getElementById('fSupplierPhone').value = s.phone || '';
-                document.getElementById('fSupplierAddress').value = s.address || '';
+        // 客户快速检索：按公司名/简称/联系人/国家/邮箱匹配，只影响下拉框显示哪些选项，不影响已选中的客户信息
+        function filterCustomerSelect() {
+            let kw = document.getElementById('fCustomerSearchInput').value.trim().toLowerCase();
+            if (!kw) { populateCustomerSelect(); return; }
+            let filtered = customers.filter(c => {
+                let hay = `${c.company || ''} ${c.shortName || ''} ${c.contact || ''} ${c.country || ''} ${c.email || ''}`.toLowerCase();
+                return hay.includes(kw);
+            });
+            populateCustomerSelect(filtered);
+        }
+        function fillCustomerFromSelect() {
+            let id = document.getElementById('fCustomerSelect').value;
+            let c = customers.find(x => x.id === id);
+            if (c) {
+                document.getElementById('fCustomerCompany').value = c.company || '';
+                document.getElementById('fCustomerShort').value = c.shortName || '';
+                document.getElementById('fCustomerCountry').value = c.country || '';
+                document.getElementById('fCustomerContact').value = c.contact || '';
+                document.getElementById('fCustomerPhone').value = c.phone || '';
+                document.getElementById('fCustomerEmail').value = c.email || '';
+                document.getElementById('fCustomerAddress').value = c.address || '';
+            }
+        }
+
+        // ====== 银行账号库 ======
+        function openBankModal() {
+            renderBankList();
+            document.getElementById('bankModal').classList.add('active');
+        }
+        function renderBankList() {
+            let html = bankAccounts.map((b, i) => `
+                <div class="mini-list-item">
+                    <div class="info"><b>${escapeHtml(b.alias)}（${escapeHtml(b.currency)}）</b><span>${escapeHtml(b.bankName)} ｜ ${escapeHtml(b.accountNo)}</span></div>
+                    <button class="btn btn-danger btn-sm" onclick="deleteBank(${i})">删除</button>
+                </div>
+            `).join('');
+            document.getElementById('bankList').innerHTML = html || '<div class="mini-list-item">暂无账户，请在下方添加</div>';
+        }
+        function addBank() {
+            let alias = document.getElementById('newBankAlias').value.trim();
+            if (!alias) { showToast('请填写账户别名', 'error'); return; }
+            bankAccounts.push({
+                id: 'b_' + Date.now(),
+                alias,
+                currency: document.getElementById('newBankCurrency').value.trim(),
+                accountName: document.getElementById('newBankAccName').value.trim(),
+                accountNo: document.getElementById('newBankAccNo').value.trim(),
+                bankName: document.getElementById('newBankName').value.trim(),
+                bankAddress: document.getElementById('newBankAddress').value.trim(),
+                swift: document.getElementById('newBankSwift').value.trim(),
+                accountType: document.getElementById('newBankAccType').value.trim(),
+                beneficiaryCode: document.getElementById('newBankCode').value.trim()
+            });
+            saveAll();
+            renderBankList();
+            populateBankSelect();
+            ['newBankAlias','newBankCurrency','newBankAccName','newBankAccNo','newBankName','newBankAddress','newBankSwift','newBankAccType','newBankCode'].forEach(id => document.getElementById(id).value = '');
+            showToast('银行账户已添加');
+        }
+        function deleteBank(idx) {
+            if (!confirm('删除这个银行账户？')) return;
+            bankAccounts.splice(idx, 1);
+            saveAll();
+            renderBankList();
+            populateBankSelect();
+        }
+        function populateBankSelect() {
+            let sel = document.getElementById('fBankSelect');
+            sel.innerHTML = '<option value="">-- 请选择 --</option>' +
+                bankAccounts.map(b => `<option value="${b.id}">${escapeHtml(b.alias)}（${escapeHtml(b.currency)}）</option>`).join('');
+        }
+
+        // ====== 价格/付款条款自定义输入切换 ======
+        function togglePriceTermCustom() {
+            let isCustom = document.getElementById('fPriceTermSelect').value === 'custom';
+            document.getElementById('fPriceTermCustom').style.display = isCustom ? 'block' : 'none';
+        }
+        function togglePaymentTermCustom() {
+            let isCustom = document.getElementById('fPaymentTermSelect').value === 'custom';
+            document.getElementById('fPaymentTermCustom').style.display = isCustom ? 'block' : 'none';
+        }
+        function getPriceTermValue() {
+            let sel = document.getElementById('fPriceTermSelect');
+            return sel.value === 'custom' ? document.getElementById('fPriceTermCustom').value.trim() : sel.value;
+        }
+        function getPaymentTermValue() {
+            let sel = document.getElementById('fPaymentTermSelect');
+            return sel.value === 'custom' ? document.getElementById('fPaymentTermCustom').value.trim() : sel.value;
+        }
+
+        // ====== 币种 ======
+        function toggleCurrencyCustom() {
+            let isCustom = document.getElementById('fCurrencySelect').value === 'custom';
+            document.getElementById('fCurrencyCustom').style.display = isCustom ? 'block' : 'none';
+            updateItemsTotal();
+        }
+        function getCurrencyValue() {
+            let sel = document.getElementById('fCurrencySelect');
+            return sel.value === 'custom' ? (document.getElementById('fCurrencyCustom').value.trim() || 'USD') : sel.value;
+        }
+        // 选择银行账户时：只有一个币种就自动带出；如果账户支持多个币种（逗号分隔），不猜，提醒手动选
+        function syncCurrencyFromBank() {
+            let bankId = document.getElementById('fBankSelect').value;
+            let bank = bankAccounts.find(b => b.id === bankId);
+            if (!bank || !bank.currency) return;
+            let currencyList = bank.currency.split(/[,，、\/]/).map(c => c.trim()).filter(Boolean);
+            if (currencyList.length === 1) {
+                setCurrencySelect(currencyList[0]);
+                updateItemsTotal();
+            } else if (currencyList.length > 1) {
+                showToast(`该账户支持多币种（${currencyList.join('/')}），请手动选择本次用的币种`, 'error');
+            }
+        }
+        function setCurrencySelect(value) {
+            let sel = document.getElementById('fCurrencySelect');
+            let options = Array.from(sel.options).map(o => o.value);
+            if (options.includes(value)) {
+                sel.value = value;
+                document.getElementById('fCurrencyCustom').style.display = 'none';
+            } else if (value) {
+                sel.value = 'custom';
+                document.getElementById('fCurrencyCustom').value = value;
+                document.getElementById('fCurrencyCustom').style.display = 'block';
+            } else {
+                sel.value = 'USD';
+                document.getElementById('fCurrencyCustom').style.display = 'none';
             }
         }
 
         // ====== 货品明细行 ======
         function addItemRow(item) {
-            item = item || { name: '', size: '', price: '', qty: '' };
+            item = item || { name: '', size: '', unit: '', qty: '', price: '', cost: '', costAmount: '' };
             let tbody = document.getElementById('itemsTableBody');
             let tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><input type="text" class="item-name" value="${escapeHtml(item.name)}"></td>
                 <td><input type="text" class="item-size" value="${escapeHtml(item.size)}"></td>
-                <td><input type="text" class="item-price" value="${escapeHtml(item.price)}" oninput="updateItemsTotal()"></td>
+                <td><input type="text" class="item-unit" value="${escapeHtml(item.unit)}"></td>
                 <td><input type="text" class="item-qty" value="${escapeHtml(item.qty)}" oninput="updateItemsTotal()"></td>
+                <td><input type="text" class="item-price" value="${escapeHtml(item.price)}" oninput="updateItemsTotal()"></td>
                 <td><input type="text" class="item-amount" value="${escapeHtml(item.amount || '')}" readonly style="background:#f8fafc;"></td>
+                <td><input type="text" class="item-cost" value="${escapeHtml(item.cost)}" oninput="updateItemsTotal()" style="background:#fff8e6;" title="内部采购成本，可以从报价单的成本价导入，也可以手动改，不影响给客户看的单价"></td>
+                <td><input type="text" class="item-costAmount" value="${escapeHtml(item.costAmount || '')}" readonly style="background:#f8fafc;" title="采购成本×数量"></td>
                 <td><button class="del-row" onclick="this.closest('tr').remove(); updateItemsTotal();">🗑️</button></td>
             `;
             tbody.appendChild(tr);
@@ -639,16 +869,21 @@
         }
         function updateItemsTotal() {
             let rows = document.querySelectorAll('#itemsTableBody tr');
-            let totalQty = 0, totalAmount = 0;
+            let totalQty = 0, totalAmount = 0, totalCost = 0;
             rows.forEach(r => {
                 let qty = parseFloat(r.querySelector('.item-qty').value) || 0;
                 let price = parseFloat(r.querySelector('.item-price').value) || 0;
+                let cost = parseFloat(r.querySelector('.item-cost').value) || 0;
                 let amount = qty * price;
+                let costAmount = qty * cost;
                 r.querySelector('.item-amount').value = amount ? amount.toFixed(2) : '';
+                r.querySelector('.item-costAmount').value = costAmount ? costAmount.toFixed(2) : '';
                 totalQty += qty;
                 totalAmount += amount;
+                totalCost += costAmount;
             });
-            document.getElementById('itemsTotalDisplay').innerText = `合计数量：${totalQty}　｜　合计金额：${totalAmount.toFixed(2)}`;
+            let currency = getCurrencyValue();
+            document.getElementById('itemsTotalDisplay').innerText = `合计数量：${totalQty}　｜　合计金额：${totalAmount.toFixed(2)} ${currency}　｜　合计采购成本(内部)：${totalCost.toFixed(2)}`;
         }
         function getItemsFromForm() {
             let rows = document.querySelectorAll('#itemsTableBody tr');
@@ -656,13 +891,17 @@
             rows.forEach(r => {
                 let name = r.querySelector('.item-name').value.trim();
                 let size = r.querySelector('.item-size').value.trim();
-                let price = r.querySelector('.item-price').value.trim();
+                let unit = r.querySelector('.item-unit').value.trim();
                 let qty = r.querySelector('.item-qty').value.trim();
+                let price = r.querySelector('.item-price').value.trim();
                 let amount = r.querySelector('.item-amount').value.trim();
-                if (name || size || qty) items.push({ name, size, price, qty, amount });
+                let cost = r.querySelector('.item-cost').value.trim();
+                let costAmount = r.querySelector('.item-costAmount').value.trim();
+                if (name || size || qty) items.push({ name, size, unit, qty, price, amount, cost, costAmount });
             });
             return items;
         }
+        // 批量追加货品行（用于导入），不会清空已有的行；如果表格里只有一行空白占位行，先把它去掉再追加
         function appendItems(items) {
             if (!items || !items.length) return;
             let body = document.getElementById('itemsTableBody');
@@ -673,94 +912,238 @@
                 if (allEmpty) r.remove();
             }
             items.forEach(it => addItemRow(it));
-        }
-
-        // ====== AI翻译品名（复用报价系统那个AI询价助手同款接口，只是换一个systemPrompt） ======
-        async function translateItemNames() {
-            let rows = document.querySelectorAll('#itemsTableBody tr');
-            let targets = []; // { row, input, originalName }
-            rows.forEach(r => {
-                let input = r.querySelector('.item-name');
-                let name = input.value.trim();
-                // 已经是中文的跳过，不用再翻一遍；纯数字/型号（没有一个字母）大概率是货号，也跳过
-                if (!name) return;
-                if (/[\u4e00-\u9fa5]/.test(name)) return;
-                if (!/[a-zA-Z]/.test(name)) return;
-                targets.push({ input, originalName: name });
-            });
-
-            if (targets.length === 0) {
-                showToast('没有找到需要翻译的英文品名（可能都已经是中文，或表格是空的）', 'error');
-                return;
-            }
-
-            let btn = document.getElementById('translateNamesBtn');
-            btn.disabled = true;
-            btn.innerText = '🌐 翻译中...';
-
-            try {
-                let systemPrompt = `你是磨具/精密刀具/工业泵阀行业的中英文品名翻译专家，熟悉行业内的习惯说法（例如 End Mill 翻成"端铣刀"而不是"末端磨坊"）。
-接下来会给你一个JSON数组，里面是若干条英文（或中英混杂）的品名。
-请把每一条翻译成国内供应商能看懂的、符合行业习惯的中文品名，尺寸/型号/规格代码本身不用翻译、原样保留在名字里即可。
-必须严格按以下JSON格式返回，不要有任何多余的文字说明：
-{"translations": ["翻译结果1", "翻译结果2", ...]}
-数组顺序必须跟输入的顺序完全一致，数量也必须完全一致。`;
-                let userMessage = JSON.stringify(targets.map(t => t.originalName));
-
-                let res = await fetch(`${WORKER_URL}/ai/parse-rfq`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Access-Token': ACCESS_TOKEN },
-                    body: JSON.stringify({ systemPrompt, userMessage })
-                });
-                let data = await res.json();
-                if (!res.ok) throw new Error(data.error || '翻译服务出错');
-
-                let parsed;
-                try {
-                    parsed = JSON.parse(data.text);
-                } catch (e) {
-                    throw new Error('AI返回的内容不是合法的JSON，翻译失败');
-                }
-                let translations = parsed.translations;
-                if (!Array.isArray(translations) || translations.length !== targets.length) {
-                    throw new Error('AI返回的翻译条数跟品名条数对不上，为避免张冠李戴，本次不做替换');
-                }
-
-                targets.forEach((t, i) => {
-                    t.input.value = translations[i];
-                });
-                updateItemsTotal();
-                showToast(`已翻译 ${targets.length} 条品名，请核对一下准确性`);
-            } catch (e) {
-                showToast('翻译失败：' + e.message, 'error');
-            } finally {
-                btn.disabled = false;
-                btn.innerText = '🌐 翻译品名';
-            }
+            updateItemsTotal();
         }
 
         // ====== 订单号生成 ======
         function genOrderNo() {
             let today = getToday().replace(/-/g, '').slice(2); // YYMMDD
-            let prefix = `SO-SL${today}-T`;
-            let sameDay = orders.filter(o => o.orderNo && o.orderNo.startsWith(prefix));
+            let sameDay = orders.filter(o => o.orderNo && o.orderNo.startsWith(`SL${today}T`));
             let seq = (sameDay.length + 1).toString().padStart(3, '0');
-            return `${prefix}${seq}`;
+            return `SL${today}T${seq}`;
         }
 
-        // 判断一个订单当前是否处于"逾期"状态：以逾期后跟进日期为准（如果有），否则用交期
-        function isOrderOverdue(o, today) {
-            today = today || getToday();
-            if (o.completed) return false;
-            let effectiveDate = o.followUpDate || o.deliveryDate;
-            return !!(effectiveDate && effectiveDate < today);
+        // ====== AI导入订单（粘贴订单原文，AI解析成客户信息+货品明细，直接开一张新订单预填） ======
+        function openAiImportModal() {
+            document.getElementById('aiImportText').value = '';
+            document.getElementById('aiImportModal').classList.add('active');
+        }
+
+        // 尝试把AI解析出的公司名匹配到客户资料库里已有的客户，匹配到就用资料库里更可靠的联系方式补全，
+        // 没匹配到就直接用AI从文本里读到的信息（可能不全，需要你自己核对补充）
+        function matchExistingCustomer(companyName) {
+            if (!companyName) return null;
+            let name = companyName.trim().toLowerCase();
+            return customers.find(c => (c.company || '').trim().toLowerCase() === name) || null;
+        }
+
+        async function parseAiOrderText() {
+            let rawText = document.getElementById('aiImportText').value.trim();
+            if (!rawText) { showToast('请先粘贴订单原文', 'error'); return; }
+
+            let btn = document.getElementById('aiImportBtn');
+            btn.disabled = true;
+            btn.innerText = '🤖 解析中...';
+
+            try {
+                let systemPrompt = `你是磨具/精密刀具/工业泵阀行业的外贸订单录入助手。
+接下来会给你一段客户订单原文（可能是邮件、聊天记录、PO扫描文字等，可能是英文、中文或中英混杂），请从中提取信息。
+必须严格按以下JSON格式返回，不要有任何多余的文字说明，无法确定的字段留空字符串，货品数组里的qty和price留数字形式的字符串（无法确定就留空）：
+{
+  "customerCompany": "客户公司全名",
+  "customerContact": "联系人姓名",
+  "customerEmail": "邮箱",
+  "customerPhone": "电话",
+  "customerAddress": "地址",
+  "customerCountry": "国家",
+  "deliveryDate": "交期，格式YYYY-MM-DD，识别不出来就留空",
+  "deliveryTimeText": "交货时间的原始说法，如'10 workdays'，识别不出来就留空",
+  "priceTerm": "价格条款如FOB Shenzhen/CIF/EXW，识别不出来就留空",
+  "paymentTerm": "付款条款原文，识别不出来就留空",
+  "currency": "币种代码如USD/CNY，识别不出来就留空",
+  "remark": "其他需要注意的备注信息，识别不出来就留空",
+  "items": [
+    {"name": "品名", "size": "尺寸/规格/型号", "unit": "单位如pcs/set，识别不出来就留空", "qty": "数量", "price": "单价"}
+  ]
+}
+品名保留原文语言即可，不用翻译。如果原文里根本没有能识别出的货品信息，items返回空数组。`;
+
+                let res = await fetch(`${WORKER_URL}/ai/parse-rfq`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Access-Token': ACCESS_TOKEN },
+                    body: JSON.stringify({ systemPrompt, userMessage: rawText })
+                });
+                let data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'AI解析服务出错');
+
+                let parsed;
+                try {
+                    parsed = JSON.parse(data.text);
+                } catch (e) {
+                    throw new Error('AI返回的内容不是合法的JSON，解析失败');
+                }
+
+                if (!Array.isArray(parsed.items) || parsed.items.length === 0) {
+                    let ok = confirm('AI没有从文本里识别出任何货品明细，是否仍然用识别到的客户信息开一张新订单（货品需要你自己手动添加）？');
+                    if (!ok) return;
+                }
+
+                // 开一张新订单，把当前详情页重置为空白新建状态
+                openOrderDetail(null);
+
+                // 优先用客户资料库里已有的记录（更可靠），资料库没有的字段再用AI从原文识别的结果兜底
+                let existing = matchExistingCustomer(parsed.customerCompany);
+                document.getElementById('fCustomerCompany').value = parsed.customerCompany || '';
+                document.getElementById('fCustomerShort').value = existing?.shortName || '';
+                document.getElementById('fCustomerCountry').value = existing?.country || parsed.customerCountry || '';
+                document.getElementById('fCustomerContact').value = existing?.contact || parsed.customerContact || '';
+                document.getElementById('fCustomerPhone').value = existing?.phone || parsed.customerPhone || '';
+                document.getElementById('fCustomerEmail').value = existing?.email || parsed.customerEmail || '';
+                document.getElementById('fCustomerAddress').value = existing?.address || parsed.customerAddress || '';
+                if (existing) document.getElementById('fCustomerSelect').value = existing.id;
+
+                if (parsed.deliveryDate) document.getElementById('fDeliveryDate').value = parsed.deliveryDate;
+                if (parsed.deliveryTimeText) document.getElementById('fDeliveryTimeText').value = parsed.deliveryTimeText;
+                if (parsed.priceTerm) setTermSelect('fPriceTermSelect', 'fPriceTermCustom', parsed.priceTerm);
+                if (parsed.paymentTerm) setTermSelect('fPaymentTermSelect', 'fPaymentTermCustom', parsed.paymentTerm);
+                if (parsed.currency) setCurrencySelect(parsed.currency);
+                if (parsed.remark) document.getElementById('fRemark').value = parsed.remark;
+
+                if (Array.isArray(parsed.items) && parsed.items.length > 0) {
+                    let mapped = parsed.items.map(it => ({
+                        name: it.name || '', size: it.size || '', unit: it.unit || '',
+                        qty: it.qty || '', price: it.price || ''
+                    }));
+                    appendItems(mapped);
+                }
+
+                closeModal('aiImportModal');
+                showToast(existing
+                    ? `已识别客户"${existing.company}"（资料库里已有，联系方式已自动补全），请核对货品明细后保存`
+                    : '已根据AI识别结果开好新订单，请仔细核对客户信息和货品明细（这是新客户，资料库里还没有）后再保存');
+            } catch (e) {
+                showToast('AI解析失败：' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = '🤖 AI解析并录入';
+            }
+        }
+
+        // ====== 从报价单导入货品（不做"只能用一次"限制，报价单可以被反复引用）======
+        let importQuoteCache = null;
+        let importSelectedQuote = null;
+
+        async function openImportModal() {
+            document.getElementById('importModal').classList.add('active');
+            document.getElementById('importOrderListView').classList.remove('hidden');
+            document.getElementById('importItemsView').classList.add('hidden');
+            document.getElementById('importSearchInput').value = '';
+
+            let listEl = document.getElementById('importOrderList');
+            listEl.innerHTML = '<div class="mini-list-item">正在加载报价单列表...</div>';
+
+            if (!importQuoteCache) {
+                importQuoteCache = await fetchQuotationOrders();
+            }
+            renderImportOrderList();
+        }
+
+        function renderImportOrderList() {
+            let listEl = document.getElementById('importOrderList');
+            let kw = (document.getElementById('importSearchInput')?.value || '').trim().toLowerCase();
+            let list = (importQuoteCache || []).filter(q => {
+                if (!kw) return true;
+                let hay = `${q.quoteNo} ${q.customerCompany || ''}`.toLowerCase();
+                return hay.includes(kw);
+            });
+            list.sort((a, b) => (b.quoteNo || '').localeCompare(a.quoteNo || ''));
+
+            if (list.length === 0) {
+                listEl.innerHTML = `<div class="mini-list-item">${kw ? '没有匹配的报价单' : '没有找到报价单数据'}</div>`;
+                return;
+            }
+
+            listEl.innerHTML = list.map(q => {
+                let itemCount = (q.items || []).length;
+                return `<div class="mini-list-item clickable" onclick='selectImportQuote(${JSON.stringify(q.quoteNo)})'>
+                    <div class="info"><b>${escapeHtml(q.quoteNo)}　${escapeHtml(q.customerCompany || '')}</b><span>${escapeHtml(q.series)} ｜ ${formatDate(q.quoteDate)} ｜ ${itemCount}条货品</span></div>
+                    <span>→</span>
+                </div>`;
+            }).join('');
+        }
+
+        // 不同产品系列的报价单字段结构不一样，统一映射成客户下单系统的 品名/尺寸/单位/数量/单价 结构；
+        // 报价单的成本价(内部字段)也一并带过来，作为客户下单系统这边的"采购成本"初始值，方便后续采购环节直接用
+        function mapQuoteItemToOrderItem(it) {
+            let sizeParts = [it.spec, it.keySpec].filter(Boolean);
+            return {
+                name: it.name || '',
+                size: sizeParts.join('\n'),
+                unit: '',
+                qty: it.qty || '',
+                price: it.price || '',
+                cost: it.cost || ''
+            };
+        }
+
+        function selectImportQuote(quoteNo) {
+            let quote = (importQuoteCache || []).find(q => q.quoteNo === quoteNo);
+            if (!quote) return;
+            importSelectedQuote = quote;
+
+            document.getElementById('importOrderListView').classList.add('hidden');
+            document.getElementById('importItemsView').classList.remove('hidden');
+
+            let items = quote.items || [];
+            let html = items.map((it, i) => {
+                let mapped = mapQuoteItemToOrderItem(it);
+                let qtyNote = mapped.qty ? `数量:${escapeHtml(mapped.qty)}` : '（报价单未填数量，导入后请手动填写）';
+                return `<div class="import-item-row">
+                    <input type="checkbox" class="import-check" data-idx="${i}" checked>
+                    <span>${escapeHtml(mapped.name)}　${escapeHtml((mapped.size||'').replace(/\n/g,' / '))}　${qtyNote}</span>
+                </div>`;
+            }).join('');
+            document.getElementById('importItemsList').innerHTML = html || '<div class="import-item-row">该报价单没有货品明细</div>';
+        }
+
+        function backToImportOrderList() {
+            document.getElementById('importOrderListView').classList.remove('hidden');
+            document.getElementById('importItemsView').classList.add('hidden');
+        }
+
+        function confirmImportItems() {
+            if (!importSelectedQuote) return;
+            let checks = document.querySelectorAll('.import-check:checked');
+            let items = importSelectedQuote.items || [];
+            let toImport = [];
+            checks.forEach(c => {
+                let idx = parseInt(c.dataset.idx);
+                let it = items[idx];
+                if (it) toImport.push(mapQuoteItemToOrderItem(it));
+            });
+            if (toImport.length === 0) { showToast('请至少选择一条货品', 'error'); return; }
+
+            appendItems(toImport);
+            // 报价单没有单独存币种到货品行，但整份报价单是有币种的——如果当前订单还没选币种，顺带带过去
+            if (importSelectedQuote.currency) {
+                let curSel = document.getElementById('fCurrencySelect');
+                if (curSel && !document.getElementById('fCurrencyCustom').value) {
+                    setCurrencySelect(importSelectedQuote.currency);
+                    updateItemsTotal();
+                }
+            }
+
+            closeModal('importModal');
+            showToast(`已导入 ${toImport.length} 条货品，如果报价单里没有填数量的，请记得手动补上`);
         }
 
         // ====== 视图切换 ======
         function backToList() { document.getElementById('detailView').classList.add('hidden'); document.getElementById('listView').classList.remove('hidden'); renderList(); }
 
         function openOrderDetail(orderNo) {
-            populateSupplierSelect();
+            document.getElementById('fCustomerSearchInput').value = '';
+            populateCustomerSelect();
+            populateBankSelect();
             document.getElementById('listView').classList.add('hidden');
             document.getElementById('detailView').classList.remove('hidden');
             document.getElementById('itemsTableBody').innerHTML = '';
@@ -769,101 +1152,102 @@
                 let o = orders.find(x => x.orderNo === orderNo);
                 if (!o) return;
                 currentOrderNo = orderNo;
-                let wasOverdue = isOrderOverdue(o);
-                document.getElementById('detailTitle').innerText = wasOverdue ? `⚠️ 订单已逾期 ${orderNo}` : `✏️ 编辑订单 ${orderNo}`;
+                document.getElementById('detailTitle').innerText = `✏️ 编辑订单 ${orderNo}`;
                 document.getElementById('fOrderNo').value = o.orderNo;
                 document.getElementById('fOrderDate').value = o.orderDate || '';
                 document.getElementById('fDeliveryDate').value = o.deliveryDate || '';
-                document.getElementById('fSupplierSelect').value = '';
-                document.getElementById('fSupplierCompany').value = o.supplierCompany || '';
-                document.getElementById('fSupplierShort').value = o.supplierShort || '';
-                document.getElementById('fSupplierContact').value = o.supplierContact || '';
-                document.getElementById('fSupplierPhone').value = o.supplierPhone || '';
-                document.getElementById('fSupplierAddress').value = o.supplierAddress || '';
-                document.getElementById('fPacking').value = o.packing || '';
-                document.getElementById('fDrawingNote').value = o.drawingNote || '';
+                document.getElementById('fDeliveryTimeText').value = o.deliveryTimeText || '';
+                document.getElementById('fCustomerSelect').value = '';
+                document.getElementById('fCustomerCompany').value = o.customerCompany || '';
+                document.getElementById('fCustomerShort').value = o.customerShort || '';
+                document.getElementById('fCustomerCountry').value = o.customerCountry || '';
+                document.getElementById('fCustomerContact').value = o.customerContact || '';
+                document.getElementById('fCustomerPhone').value = o.customerPhone || '';
+                document.getElementById('fCustomerEmail').value = o.customerEmail || '';
+                document.getElementById('fCustomerAddress').value = o.customerAddress || '';
+                setTermSelect('fPriceTermSelect', 'fPriceTermCustom', o.priceTerm);
+                setTermSelect('fPaymentTermSelect', 'fPaymentTermCustom', o.paymentTerm);
+                document.getElementById('fBankSelect').value = o.bankAccountId || '';
+                setCurrencySelect(o.currency || 'USD');
                 document.getElementById('fCompleted').checked = !!o.completed;
                 document.getElementById('fPaid').checked = !!o.paid;
                 document.getElementById('fRemark').value = o.remark || '';
                 (o.items || []).forEach(it => addItemRow(it));
                 document.getElementById('deleteOrderBtn').style.display = 'inline-flex';
                 document.getElementById('copyOrderBtn').style.display = 'inline-flex';
-
-                document.getElementById('fWasOverdue').value = wasOverdue ? '1' : '0';
-                document.getElementById('rescheduleHint').classList.toggle('hidden', !wasOverdue);
-                document.getElementById('rescheduleDateGroup').classList.toggle('hidden', !wasOverdue);
-                document.getElementById('fFollowUpDate').value = wasOverdue ? getToday() : (o.followUpDate || '');
             } else {
                 currentOrderNo = null;
-                document.getElementById('detailTitle').innerText = '📝 新建采购单';
+                document.getElementById('detailTitle').innerText = '📝 新建订单';
                 document.getElementById('fOrderNo').value = '（保存时自动生成）';
                 document.getElementById('fOrderDate').value = getToday();
                 document.getElementById('fDeliveryDate').value = '';
-                document.getElementById('fSupplierSelect').value = '';
-                document.getElementById('fSupplierCompany').value = '';
-                document.getElementById('fSupplierShort').value = '';
-                document.getElementById('fSupplierContact').value = '';
-                document.getElementById('fSupplierPhone').value = '';
-                document.getElementById('fSupplierAddress').value = '';
-                document.getElementById('fPacking').value = '';
-                document.getElementById('fDrawingNote').value = '';
+                document.getElementById('fDeliveryTimeText').value = '';
+                document.getElementById('fCustomerSelect').value = '';
+                document.getElementById('fCustomerCompany').value = '';
+                document.getElementById('fCustomerShort').value = '';
+                document.getElementById('fCustomerCountry').value = '';
+                document.getElementById('fCustomerContact').value = '';
+                document.getElementById('fCustomerPhone').value = '';
+                document.getElementById('fCustomerEmail').value = '';
+                document.getElementById('fCustomerAddress').value = '';
+                document.getElementById('fPriceTermSelect').value = 'FOB Shenzhen';
+                document.getElementById('fPriceTermCustom').style.display = 'none';
+                document.getElementById('fPaymentTermSelect').value = '30% deposit, 70% before shipment';
+                document.getElementById('fPaymentTermCustom').style.display = 'none';
+                document.getElementById('fBankSelect').value = '';
+                setCurrencySelect('USD');
                 document.getElementById('fCompleted').checked = false;
                 document.getElementById('fPaid').checked = false;
                 document.getElementById('fRemark').value = '';
                 addItemRow();
                 document.getElementById('deleteOrderBtn').style.display = 'none';
                 document.getElementById('copyOrderBtn').style.display = 'none';
-
-                document.getElementById('fWasOverdue').value = '0';
-                document.getElementById('rescheduleHint').classList.add('hidden');
-                document.getElementById('rescheduleDateGroup').classList.add('hidden');
-                document.getElementById('fFollowUpDate').value = '';
             }
             updateItemsTotal();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // ====== 保存/复制/删除订单 ======
+        function setTermSelect(selectId, customId, value) {
+            let sel = document.getElementById(selectId);
+            let options = Array.from(sel.options).map(o => o.value);
+            if (options.includes(value)) {
+                sel.value = value;
+                document.getElementById(customId).style.display = 'none';
+            } else {
+                sel.value = 'custom';
+                document.getElementById(customId).value = value || '';
+                document.getElementById(customId).style.display = 'block';
+            }
+        }
+
+        // ====== 保存/删除订单 ======
         function saveOrder() {
-            let supplierCompany = document.getElementById('fSupplierCompany').value.trim();
-            if (!supplierCompany) { showToast('请填写供应商公司名', 'error'); return; }
+            let customerCompany = document.getElementById('fCustomerCompany').value.trim();
+            if (!customerCompany) { showToast('请填写公司名', 'error'); return; }
             let items = getItemsFromForm();
             if (items.length === 0) { showToast('请至少填写一条货品明细', 'error'); return; }
 
-            // 用打开详情页时记录的状态判断是否需要"逾期后跟进"，避免出现校验通过前数据已被污染的问题
-            let wasOverdue = document.getElementById('fWasOverdue').value === '1';
-            let newFollowUpDate = '';
-            if (wasOverdue) {
-                newFollowUpDate = document.getElementById('fFollowUpDate').value;
-                if (!newFollowUpDate) { showToast('请填写逾期后跟进日期', 'error'); return; }
-            }
-
             let orderNo = currentOrderNo || genOrderNo();
-            let existing = currentOrderNo ? orders.find(o => o.orderNo === currentOrderNo) : null;
-
             let data = {
                 orderNo,
                 orderDate: document.getElementById('fOrderDate').value || getToday(),
                 deliveryDate: document.getElementById('fDeliveryDate').value,
-                supplierCompany,
-                supplierShort: document.getElementById('fSupplierShort').value.trim(),
-                supplierContact: document.getElementById('fSupplierContact').value.trim(),
-                supplierPhone: document.getElementById('fSupplierPhone').value.trim(),
-                supplierAddress: document.getElementById('fSupplierAddress').value.trim(),
+                deliveryTimeText: document.getElementById('fDeliveryTimeText').value.trim(),
+                customerCompany,
+                customerShort: document.getElementById('fCustomerShort').value.trim(),
+                customerCountry: document.getElementById('fCustomerCountry').value.trim(),
+                customerContact: document.getElementById('fCustomerContact').value.trim(),
+                customerPhone: document.getElementById('fCustomerPhone').value.trim(),
+                customerEmail: document.getElementById('fCustomerEmail').value.trim(),
+                customerAddress: document.getElementById('fCustomerAddress').value.trim(),
+                priceTerm: getPriceTermValue(),
+                paymentTerm: getPaymentTermValue(),
+                bankAccountId: document.getElementById('fBankSelect').value,
+                currency: getCurrencyValue(),
                 items,
-                packing: document.getElementById('fPacking').value.trim(),
-                drawingNote: document.getElementById('fDrawingNote').value.trim(),
                 completed: document.getElementById('fCompleted').checked,
                 paid: document.getElementById('fPaid').checked,
-                remark: document.getElementById('fRemark').value.trim(),
-                followUpDate: existing ? existing.followUpDate : null,
-                overdueCount: existing ? (existing.overdueCount || 0) : 0
+                remark: document.getElementById('fRemark').value.trim()
             };
-
-            if (wasOverdue) {
-                data.followUpDate = newFollowUpDate;
-                data.overdueCount = (data.overdueCount || 0) + 1;
-            }
 
             if (currentOrderNo) {
                 let idx = orders.findIndex(o => o.orderNo === currentOrderNo);
@@ -875,9 +1259,14 @@
             saveAll();
             showToast(currentOrderNo ? '订单已更新' : `订单已生成：${orderNo}`);
             currentOrderNo = orderNo;
-            openOrderDetail(orderNo); // 重新加载，刷新逾期状态显示
+            document.getElementById('fOrderNo').value = orderNo;
+            document.getElementById('detailTitle').innerText = `✏️ 编辑订单 ${orderNo}`;
+            document.getElementById('deleteOrderBtn').style.display = 'inline-flex';
+            document.getElementById('copyOrderBtn').style.display = 'inline-flex';
         }
 
+        // 复制当前订单为一个新订单：客户/货品/条款/银行账户原样带过去，订单号重新生成，
+        // 订单日期重置为今天，交期清空，完成/收款状态清空，备注清空（避免带过旧订单的专属备注）
         function copyCurrentOrder() {
             if (!currentOrderNo) return;
             currentOrderNo = null;
@@ -888,20 +1277,21 @@
             document.getElementById('fCompleted').checked = false;
             document.getElementById('fPaid').checked = false;
             document.getElementById('fRemark').value = '';
-            document.getElementById('fWasOverdue').value = '0';
-            document.getElementById('rescheduleHint').classList.add('hidden');
-            document.getElementById('rescheduleDateGroup').classList.add('hidden');
             document.getElementById('deleteOrderBtn').style.display = 'none';
             document.getElementById('copyOrderBtn').style.display = 'none';
-            showToast('已复制，供应商/货品信息已带入，请核对后保存');
+            showToast('已复制，客户/货品/条款信息已带入，请核对后保存');
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
+        // 从列表直接复制某个订单（不需要先进详情页）
         function duplicateOrderFromList(orderNo) {
             openOrderDetail(orderNo);
             copyCurrentOrder();
         }
 
+        // 删除订单：不是真的抹掉数据，而是打上"已删除"标记——
+        // 1) 订单号不会被后续新建/复制时重复生成（genOrderNo统计时依然会数到它）
+        // 2) 默认从列表隐藏，但可以通过"显示已删除订单"重新看到，或搜索订单号查到
         function deleteCurrentOrder() {
             if (!currentOrderNo) return;
             if (!confirm(`删除订单 ${currentOrderNo}？\n（删除后该订单号不会再被使用，仍可通过"显示已删除订单"查到）`)) return;
@@ -917,6 +1307,12 @@
 
         // ====== 列表渲染 ======
         function populateListFilters() {
+            let countrySel = document.getElementById('filterCountry');
+            let curCountry = countrySel.value;
+            let countries = [...new Set(orders.map(o => o.customerCountry).filter(Boolean))].sort();
+            countrySel.innerHTML = '<option value="">全部国家</option>' + countries.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+            countrySel.value = curCountry;
+
             let yearSel = document.getElementById('filterYear');
             let curYear = yearSel.value;
             let years = [...new Set(orders.map(o => (o.orderDate || '').slice(0, 4)).filter(Boolean))].sort().reverse();
@@ -927,15 +1323,17 @@
         function renderList() {
             populateListFilters();
             let kw = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+            let countryFilter = document.getElementById('filterCountry').value;
             let yearFilter = document.getElementById('filterYear').value;
             let showDeleted = document.getElementById('showDeletedCheckbox').checked;
             let today = getToday();
             let filtered = orders.filter(o => {
                 if (o.deleted && !showDeleted) return false;
                 if (kw) {
-                    let hay = `${o.orderNo} ${o.supplierCompany} ${o.supplierShort}`.toLowerCase();
+                    let hay = `${o.orderNo} ${o.customerCompany} ${o.customerShort}`.toLowerCase();
                     if (!hay.includes(kw)) return false;
                 }
+                if (countryFilter && o.customerCountry !== countryFilter) return false;
                 if (yearFilter && (o.orderDate || '').slice(0, 4) !== yearFilter) return false;
                 return true;
             });
@@ -945,54 +1343,66 @@
                 if (o.deleted) {
                     return `<tr style="opacity:0.5;">
                         <td>${o.orderNo} <span class="badge badge-overdue">已删除</span></td>
-                        <td>${escapeHtml(o.supplierShort) || '—'}</td>
+                        <td>${escapeHtml(o.customerShort) || '—'}</td>
+                        <td>${escapeHtml(o.customerCompany) || '—'}</td>
                         <td colspan="7" style="color:#94a3b8;">删除时间：${formatDate(o.deletedAt)}</td>
-                        <td>—</td><td>—</td>
+                        <td>—</td>
                     </tr>`;
                 }
                 let totalQty = (o.items || []).reduce((s, it) => s + (parseFloat(it.qty) || 0), 0);
                 let totalAmount = (o.items || []).reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
-                let overdue = isOrderOverdue(o, today);
-                return `<tr class="${overdue ? 'overdue-row' : ''}">
+                let totalCost = (o.items || []).reduce((s, it) => s + (parseFloat(it.costAmount) || 0), 0);
+                let isOverdue = o.deliveryDate && o.deliveryDate < today && !o.completed;
+                return `<tr class="${isOverdue ? 'overdue-row' : ''}">
                     <td><span class="order-link" onclick="openOrderDetail('${o.orderNo}')">${o.orderNo}</span></td>
-                    <td>${escapeHtml(o.supplierShort) || '—'}</td>
+                    <td>${escapeHtml(o.customerShort) || '—'}</td>
+                    <td>${escapeHtml(o.customerCompany)}</td>
                     <td>${totalQty}</td>
-                    <td>${totalAmount.toFixed(2)}</td>
+                    <td>${totalAmount.toFixed(2)} ${escapeHtml(o.currency || 'USD')}</td>
+                    <td>${totalCost ? totalCost.toFixed(2) : '—'}</td>
                     <td>${formatDate(o.deliveryDate)}</td>
-                    <td>${overdue ? '<span class="badge badge-overdue">⚠️ 逾期</span>' : '<span class="badge badge-yes">正常</span>'}</td>
-                    <td>${o.followUpDate ? formatDate(o.followUpDate) + (o.overdueCount ? ` <span class="badge badge-reschedule">🔄${o.overdueCount}次</span>` : '') : '—'}</td>
+                    <td>${isOverdue ? '<span class="badge badge-overdue">⚠️ 逾期</span>' : '<span class="badge badge-yes">正常</span>'}</td>
                     <td>${o.completed ? '<span class="badge badge-yes">已完成</span>' : '<span class="badge badge-no">未完成</span>'}</td>
-                    <td>${o.paid ? '<span class="badge badge-yes">已付款</span>' : '<span class="badge badge-no">未付款</span>'}</td>
+                    <td>${o.paid ? '<span class="badge badge-yes">已完款</span>' : '<span class="badge badge-no">未完款</span>'}</td>
                     <td style="max-width:150px;">${escapeHtml(o.remark) || '—'}</td>
                     <td><button class="btn btn-outline btn-sm" onclick="duplicateOrderFromList('${o.orderNo}')">📋 复制</button></td>
                 </tr>`;
             }).join('');
-            document.getElementById('orderTableBody').innerHTML = html || '<tr><td colspan="11" style="padding:30px;text-align:center;">暂无订单</td></tr>';
+            document.getElementById('orderTableBody').innerHTML = html || '<tr><td colspan="12" style="padding:30px;text-align:center;">暂无订单</td></tr>';
         }
 
         // ====== 历史价格查询 ======
         function openPriceHistoryModal() {
-            let sel = document.getElementById('phSupplierSelect');
-            let names = [...new Set(orders.map(o => o.supplierCompany).filter(Boolean))].sort();
-            sel.innerHTML = '<option value="">-- 请选择供应商 --</option>' + names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+            let sel = document.getElementById('phCustomerSelect');
+            // 用订单里出现过的客户（按公司名去重），而不是客户资料库——这样即使客户资料被删了，历史订单依然能查
+            let names = [...new Set(orders.map(o => o.customerCompany).filter(Boolean))].sort();
+            sel.innerHTML = '<option value="">-- 请选择客户 --</option>' + names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
             document.getElementById('phProductKeyword').value = '';
             document.getElementById('phSizeKeyword').value = '';
-            document.getElementById('priceHistoryBody').innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;">请选择供应商后点查询</td></tr>';
+            document.getElementById('priceHistoryBody').innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;">请选择客户后点查询</td></tr>';
             document.getElementById('priceHistoryModal').classList.add('active');
         }
 
         function runPriceHistoryQuery() {
-            let supplier = document.getElementById('phSupplierSelect').value;
-            if (!supplier) { showToast('请先选择供应商', 'error'); return; }
+            let customer = document.getElementById('phCustomerSelect').value;
+            if (!customer) { showToast('请先选择客户', 'error'); return; }
             let nameKw = document.getElementById('phProductKeyword').value.trim().toLowerCase();
             let sizeKw = document.getElementById('phSizeKeyword').value.trim().toLowerCase();
 
             let rows = [];
-            orders.filter(o => o.supplierCompany === supplier).forEach(o => {
+            orders.filter(o => o.customerCompany === customer).forEach(o => {
                 (o.items || []).forEach(it => {
                     if (nameKw && !(it.name || '').toLowerCase().includes(nameKw)) return;
                     if (sizeKw && !(it.size || '').toLowerCase().includes(sizeKw)) return;
-                    rows.push({ date: o.orderDate, orderNo: o.orderNo, name: it.name, size: it.size, qty: it.qty, price: it.price });
+                    rows.push({
+                        date: o.orderDate,
+                        orderNo: o.orderNo,
+                        name: it.name,
+                        size: it.size,
+                        unit: it.unit,
+                        qty: it.qty,
+                        price: it.price
+                    });
                 });
             });
             rows.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
@@ -1003,123 +1413,27 @@
                     <td>${escapeHtml(r.orderNo)}</td>
                     <td>${escapeHtml(r.name)}</td>
                     <td>${escapeHtml(r.size)}</td>
+                    <td>${escapeHtml(r.unit)}</td>
                     <td>${escapeHtml(r.qty)}</td>
                     <td>${escapeHtml(r.price)}</td>
                 </tr>
             `).join('');
-            document.getElementById('priceHistoryBody').innerHTML = html || '<tr><td colspan="6" style="padding:20px;text-align:center;">没有找到匹配的历史记录</td></tr>';
-        }
-
-        // ====== 从客户订单导入货品（按"品名+尺寸"精确追踪是否勾选过，软提示不强制拦截）======
-        function itemUsageKey(customerOrderNo, name, size) {
-            return `${customerOrderNo}::${name}::${size}`;
-        }
-
-        async function openImportModal() {
-            document.getElementById('importModal').classList.add('active');
-            document.getElementById('importOrderListView').classList.remove('hidden');
-            document.getElementById('importItemsView').classList.add('hidden');
-
-            let listEl = document.getElementById('importOrderList');
-            listEl.innerHTML = '<div class="mini-list-item">正在加载客户订单列表...</div>';
-
-            if (!importCache) {
-                importCache = await fetchCustomerOrders();
-            }
-            let list = (importCache || []).filter(o => !o.deleted);
-            list.sort((a, b) => (b.orderNo || '').localeCompare(a.orderNo || ''));
-
-            if (list.length === 0) {
-                listEl.innerHTML = '<div class="mini-list-item">没有找到客户订单数据</div>';
-                return;
-            }
-
-            listEl.innerHTML = list.map(o => {
-                let itemCount = (o.items || []).length;
-                return `<div class="mini-list-item clickable" onclick='selectImportOrder(${JSON.stringify(o.orderNo)})'>
-                    <div class="info"><b>${escapeHtml(o.orderNo)}　${escapeHtml(o.customerShort || o.customerCompany || '')}</b><span>${formatDate(o.orderDate)} ｜ ${itemCount}条货品</span></div>
-                    <span>→</span>
-                </div>`;
-            }).join('');
-        }
-
-        function selectImportOrder(orderNo) {
-            let order = (importCache || []).find(o => o.orderNo === orderNo);
-            if (!order) return;
-            importSelectedOrder = order;
-
-            document.getElementById('importOrderListView').classList.add('hidden');
-            document.getElementById('importItemsView').classList.remove('hidden');
-
-            let items = order.items || [];
-            let html = items.map((it, i) => {
-                let usedRecord = usedCustomerOrderItems.find(u => u.customerOrderNo === orderNo && u.name === it.name && u.size === it.size);
-                let usedBadge = usedRecord ? `<span class="badge-used">已勾选 ${formatDate(usedRecord.usedAt)}</span>` : '';
-                let costNote = it.cost ? `　采购成本参考:${escapeHtml(it.cost)}` : '';
-                return `<div class="import-item-row">
-                    <input type="checkbox" class="import-check" data-idx="${i}" checked>
-                    <span style="flex:1;">${escapeHtml(it.name)}　${escapeHtml(it.size)}　数量:${escapeHtml(it.qty)}${costNote}</span>
-                    ${usedBadge}
-                </div>`;
-            }).join('');
-            document.getElementById('importItemsList').innerHTML = html || '<div class="import-item-row">该订单没有货品明细</div>';
-            document.getElementById('importItemsList').dataset.sourceLabel = `客户订单${orderNo}`;
-        }
-
-        function backToImportOrderList() {
-            document.getElementById('importOrderListView').classList.remove('hidden');
-            document.getElementById('importItemsView').classList.add('hidden');
-        }
-
-        function confirmImportItems() {
-            if (!importSelectedOrder) return;
-            let checks = document.querySelectorAll('.import-check:checked');
-            let items = importSelectedOrder.items || [];
-            let sourceLabel = document.getElementById('importItemsList').dataset.sourceLabel || '';
-            let orderNo = importSelectedOrder.orderNo;
-
-            let toImport = [];
-            let repeats = [];
-            checks.forEach(c => {
-                let idx = parseInt(c.dataset.idx);
-                let it = items[idx];
-                if (!it) return;
-                // 品名/尺寸/数量正常带过来；单价用客户订单里的"采购成本"字段（不是卖给客户的单价，那个是两回事），
-                // 依然可以在采购单里手动改，这里只是省得你重新去查一遍
-                toImport.push({ name: it.name || '', size: it.size || '', qty: it.qty || '', price: it.cost || '', amount: '' });
-                let usedRecord = usedCustomerOrderItems.find(u => u.customerOrderNo === orderNo && u.name === it.name && u.size === it.size);
-                if (usedRecord) repeats.push(`${it.name} ${it.size}`);
-            });
-            if (toImport.length === 0) { showToast('请至少选择一条货品', 'error'); return; }
-
-            if (repeats.length > 0) {
-                let ok = confirm(`勾选的货品里有 ${repeats.length} 项（${repeats.join('、')}）之前已经勾选导入过，确定要再次导入吗？`);
-                if (!ok) return;
-            }
-
-            appendItems(toImport);
-
-            // 记录本次勾选过的品名+尺寸（仅作提示用，不再强制拦截重复选择）
-            let today = getToday();
-            toImport.forEach(it => {
-                usedCustomerOrderItems.push({ customerOrderNo: orderNo, name: it.name, size: it.size, usedAt: today });
-            });
-            saveAll();
-
-            closeModal('importModal');
-            showToast(`已导入 ${toImport.length} 条货品`);
+            document.getElementById('priceHistoryBody').innerHTML = html || '<tr><td colspan="7" style="padding:20px;text-align:center;">没有找到匹配的历史记录</td></tr>';
         }
 
 
-        // ====== 导出订购合同（Excel固定排版，方便另存为PDF）======
-        function exportOrderContract() {
+        // ====== 导出PI（Excel固定排版，方便另存为PDF）======
+        function exportOrderPi() {
+            let orderNo = document.getElementById('fOrderNo').value;
             if (!currentOrderNo) { showToast('请先保存订单再导出', 'error'); return; }
             let o = orders.find(x => x.orderNo === currentOrderNo);
             if (!o) { showToast('未找到订单数据', 'error'); return; }
 
+            let bank = bankAccounts.find(b => b.id === o.bankAccountId);
             let items = o.items || [];
             let totalQty = items.reduce((s, it) => s + (parseFloat(it.qty) || 0), 0);
             let totalAmount = items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
+            let currency = o.currency || 'USD';
 
             const thin = { style: 'thin', color: { rgb: '000000' } };
             const border = { top: thin, bottom: thin, left: thin, right: thin };
@@ -1130,94 +1444,132 @@
             const centerAlign = { horizontal: 'center', vertical: 'center', wrapText: true };
             const leftAlign = { horizontal: 'left', vertical: 'center', wrapText: true };
             const rightAlign = { horizontal: 'right', vertical: 'center', wrapText: true };
+            const blueFill = { fill: { patternType: 'solid', fgColor: { rgb: 'BDD7EE' } } };
 
             let aoa = [];
             let merges = [];
+
             function addRow(cells) { aoa.push(cells); return aoa.length - 1; }
-            function cell(v, font, align, brd) {
+            function cell(v, font, align, brd, extra) {
                 let s = { font: font || normalFont, alignment: align || leftAlign };
                 if (brd) s.border = brd;
+                if (extra) Object.assign(s, extra);
                 return { v: v == null ? '' : v, t: 's', s };
             }
 
-            // 标题
-            let rTitle = addRow([cell('订购合同', titleFont, centerAlign), '', '', '', '', '', '']);
-            merges.push({ s: { r: rTitle, c: 0 }, e: { r: rTitle, c: 6 } });
+            // ===== 顶部：logo空位 + 标题 + No./Date（占两行）=====
+            let rTop1 = addRow([
+                cell('', normalFont, centerAlign, border), '',
+                cell('PROFORMA INVOICE', titleFont, centerAlign), '', '',
+                cell(`No.: ${o.orderNo}`, boldFont, leftAlign, border), ''
+            ]);
+            let rTop2 = addRow([
+                '', '', '', '', '',
+                cell(`DATE: ${o.orderDate}`, boldFont, leftAlign, border), ''
+            ]);
+            merges.push({ s: { r: rTop1, c: 0 }, e: { r: rTop2, c: 1 } }); // logo空位（两行）
+            merges.push({ s: { r: rTop1, c: 2 }, e: { r: rTop2, c: 4 } }); // 标题（两行居中）
+            merges.push({ s: { r: rTop1, c: 5 }, e: { r: rTop1, c: 6 } }); // No.
+            merges.push({ s: { r: rTop2, c: 5 }, e: { r: rTop2, c: 6 } }); // Date
 
-            let rNo = addRow(['', '', '', '', cell(`合同编号：${o.orderNo}`, boldFont, { horizontal: 'right', vertical: 'center' }), '', '']);
-            merges.push({ s: { r: rNo, c: 4 }, e: { r: rNo, c: 6 } });
-
-            // 供货单位（供应商）/ 购货单位（我方）
+            // ===== VENDOR / SHIP TO 标签行（蓝底）=====
             let rHeadLbl = addRow([
-                cell('供货单位（供应商）', headFont, leftAlign, border), '', '',
-                cell('购货单位', headFont, leftAlign, border), '', '', ''
+                cell('VENDOR (seller)', headFont, leftAlign, border, blueFill), '', '',
+                cell('SHIP TO - BILL TO - NOTIFY TO', headFont, leftAlign, border, blueFill), '', '', ''
             ]);
             merges.push({ s: { r: rHeadLbl, c: 0 }, e: { r: rHeadLbl, c: 2 } });
             merges.push({ s: { r: rHeadLbl, c: 3 }, e: { r: rHeadLbl, c: 6 } });
 
-            let supplierText = `${o.supplierCompany}\n地址：${o.supplierAddress || ''}\n电话：${o.supplierPhone || ''}\n联系人：${o.supplierContact || ''}`;
-            let buyerText = `${BUYER.name}\n地址：${BUYER.address}\n电话：${BUYER.tel}\n联系人：${BUYER.contact}`;
-            let rInfo = addRow([cell(supplierText, normalFont, leftAlign, border), '', '', cell(buyerText, normalFont, leftAlign, border), '', '', '']);
+            // 只放：公司名、地址、电话、联系人 —— 其他信息不放
+            let vendorText = `${SELLER.name}\nAddress: ${SELLER.address}\nTel: ${SELLER.tel}\nContact: ${SELLER.contact}`;
+            let custText = `${o.customerCompany}\nAddress: ${o.customerAddress || ''}\nTel: ${o.customerPhone || ''}\nContact: ${o.customerContact || ''}`;
+            let rInfo = addRow([cell(vendorText, normalFont, leftAlign, border), '', '', cell(custText, normalFont, leftAlign, border), '', '', '']);
             merges.push({ s: { r: rInfo, c: 0 }, e: { r: rInfo, c: 2 } });
             merges.push({ s: { r: rInfo, c: 3 }, e: { r: rInfo, c: 6 } });
 
-            // 货品表格
+            // ===== 货品表格（蓝底表头）=====
             let rTblHead = addRow([
-                cell('序号', headFont, centerAlign, border),
-                cell('品名', headFont, centerAlign, border), '',
-                cell('尺寸/规格', headFont, centerAlign, border),
-                cell('价格', headFont, centerAlign, border),
-                cell('数量', headFont, centerAlign, border),
-                cell('总额', headFont, centerAlign, border)
+                cell('Item', headFont, centerAlign, border, blueFill),
+                cell('Product', headFont, centerAlign, border, blueFill),
+                cell('Specification', headFont, centerAlign, border, blueFill),
+                cell('M/U', headFont, centerAlign, border, blueFill),
+                cell('QTY', headFont, centerAlign, border, blueFill),
+                cell(`U/Price\n(${currency})`, headFont, centerAlign, border, blueFill),
+                cell(`Amount\n(${currency})`, headFont, centerAlign, border, blueFill)
             ]);
-            merges.push({ s: { r: rTblHead, c: 1 }, e: { r: rTblHead, c: 2 } });
 
             items.forEach((it, i) => {
-                let r = addRow([
+                addRow([
                     cell(i + 1, normalFont, centerAlign, border),
-                    cell(it.name, normalFont, leftAlign, border), '',
+                    cell(it.name, normalFont, leftAlign, border),
                     cell(it.size, normalFont, centerAlign, border),
-                    cell(it.price, normalFont, rightAlign, border),
+                    cell(it.unit, normalFont, centerAlign, border),
                     cell(it.qty, normalFont, centerAlign, border),
+                    cell(it.price, normalFont, rightAlign, border),
                     cell(it.amount, normalFont, rightAlign, border)
                 ]);
-                merges.push({ s: { r: r, c: 1 }, e: { r: r, c: 2 } });
             });
 
             let rTotal = addRow([
-                cell('合计', boldFont, centerAlign, border), '', '', '', '',
+                cell('Total', boldFont, centerAlign, border), '', '', '',
                 cell(totalQty, boldFont, centerAlign, border),
-                cell(totalAmount.toFixed(2), boldFont, rightAlign, border)
+                cell('', boldFont, centerAlign, border),
+                cell(`${totalAmount.toFixed(2)} ${currency}`, boldFont, rightAlign, border)
             ]);
-            merges.push({ s: { r: rTotal, c: 0 }, e: { r: rTotal, c: 4 } });
+            merges.push({ s: { r: rTotal, c: 0 }, e: { r: rTotal, c: 3 } });
 
             addRow(['']);
 
-            // 交期/包装要求/图纸备注/备注
-            let noteLines = [];
-            if (o.deliveryDate) noteLines.push(`交期：${o.deliveryDate}`);
-            if (o.packing) noteLines.push(`包装要求：${o.packing}`);
-            if (o.drawingNote) noteLines.push(`图纸备注：${o.drawingNote}`);
-            if (o.remark) noteLines.push(`备注：${o.remark}`);
-            if (noteLines.length) {
-                let rNotes = addRow([cell(noteLines.join('\n'), normalFont, leftAlign), '', '', '', '', '', '']);
-                merges.push({ s: { r: rNotes, c: 0 }, e: { r: rNotes, c: 6 } });
-                aoa[aoa.length - 1] = aoa[rNotes];
+            // ===== Terms and Conditions（固定结构，仅Price Terms/银行信息/交货时间变化）=====
+            let termsLines = ['Terms and Conditions:'];
+            termsLines.push(`1. Price terms: ${o.priceTerm || ''}`);
+            termsLines.push('2. Term of Payment');
+            termsLines.push(`    ${o.paymentTerm || ''} to the following seller's specified account:`);
+            if (bank) {
+                termsLines.push(`    BANK ACCOUNT NAME: ${bank.accountName}`);
+                termsLines.push(`    BANK ACCOUNT NO.: ${bank.accountNo}`);
+                termsLines.push(`    BANK NAME: ${bank.bankName}`);
+                termsLines.push(`    BANK ADDRESS: ${bank.bankAddress}`);
+                termsLines.push(`    SWIFT ADDRESS: ${bank.swift}`);
+                termsLines.push(`    Type of account: ${bank.accountType}`);
+                if (bank.beneficiaryCode) termsLines.push(`    Beneficiary Bank Code: ${bank.beneficiaryCode}`);
             }
+            termsLines.push('3. Delivery');
+            termsLines.push(`    Time of Delivery: ${o.deliveryTimeText || ''}`);
+            termsLines.push('4. Documents required:');
+            termsLines.push('    Commercial invoice & Packing list');
+            termsLines.push('5. Warranty');
+            termsLines.push('    Factory\'s standard');
+            if (o.remark) { termsLines.push('6. Remark:'); termsLines.push(`    ${o.remark}`); }
+
+            let rTerms = addRow([cell(termsLines.join('\n'), normalFont, leftAlign), '', '', '', '', '', '']);
+            merges.push({ s: { r: rTerms, c: 0 }, e: { r: rTerms, c: 6 } });
+
+            addRow(['']);
+            let rSignLbl = addRow([cell('Buyer', headFont, leftAlign, border), '', '', cell('Seller', headFont, leftAlign, border), '', '', '']);
+            merges.push({ s: { r: rSignLbl, c: 0 }, e: { r: rSignLbl, c: 2 } });
+            merges.push({ s: { r: rSignLbl, c: 3 }, e: { r: rSignLbl, c: 6 } });
+            let signText = `${o.customerCompany}\nDate: ${o.orderDate}`;
+            let sellerSignText = `${SELLER.name}\nDate: ${o.orderDate}`;
+            let rSignVal = addRow([cell(signText, normalFont, leftAlign, border), '', '', cell(sellerSignText, normalFont, leftAlign, border), '', '', '']);
+            merges.push({ s: { r: rSignVal, c: 0 }, e: { r: rSignVal, c: 2 } });
+            merges.push({ s: { r: rSignVal, c: 3 }, e: { r: rSignVal, c: 6 } });
 
             let ws = XLSX.utils.aoa_to_sheet(aoa);
             ws['!merges'] = merges;
-            ws['!cols'] = [{ wch: 6 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 8 }, { wch: 12 }];
+            ws['!cols'] = [{ wch: 6 }, { wch: 24 }, { wch: 16 }, { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 14 }];
             ws['!rows'] = aoa.map((row, i) => {
+                if (i === rTop1 || i === rTop2) return { hpx: 30 };
                 if (i === rInfo) return { hpx: 70 };
-                if (noteLines.length && i === aoa.length - 1) return { hpx: 16 * noteLines.length };
-                return { hpx: 22 };
+                if (i === rTerms) return { hpx: 16 * termsLines.length };
+                if (i === rSignVal) return { hpx: 34 };
+                return { hpx: 20 };
             });
 
             let wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, '订购合同');
-            XLSX.writeFile(wb, `订购合同_${o.orderNo}.xlsx`);
-            showToast('合同已导出，用Excel打开后可直接"文件→导出→创建PDF"另存为PDF');
+            XLSX.utils.book_append_sheet(wb, ws, 'PI');
+            XLSX.writeFile(wb, `PI_${o.orderNo}.xlsx`);
+            showToast('PI已导出，用Excel打开后可直接"文件→导出→创建PDF"另存为PDF');
         }
     </script>
 </body>
