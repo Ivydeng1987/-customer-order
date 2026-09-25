@@ -349,7 +349,7 @@
         <div class="modal" style="max-width:700px;">
             <h2>📥 从报价单导入货品</h2>
             <div id="importOrderListView">
-                <input type="text" id="importSearchInput" placeholder="🔍 搜索客户名/单号关键词..." oninput="renderImportOrderList()" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:30px; font-size:12px; margin-bottom:10px; outline:none;">
+                <input type="text" id="importSearchInput" placeholder="🔍 搜索客户名/单号/品名/尺寸关键词..." oninput="renderImportOrderList()" style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:30px; font-size:12px; margin-bottom:10px; outline:none;">
                 <div class="mini-list" id="importOrderList"><div class="mini-list-item">加载中...</div></div>
             </div>
             <div id="importItemsView" class="hidden">
@@ -1053,7 +1053,11 @@
             let kw = (document.getElementById('importSearchInput')?.value || '').trim().toLowerCase();
             let list = (importQuoteCache || []).filter(q => {
                 if (!kw) return true;
-                let hay = `${q.quoteNo} ${q.customerCompany || ''}`.toLowerCase();
+                let itemsHay = (q.items || []).map(it => {
+                    let m = mapQuoteItemToOrderItem(it);
+                    return `${m.name} ${m.size}`;
+                }).join(' ');
+                let hay = `${q.quoteNo} ${q.customerCompany || ''} ${itemsHay}`.toLowerCase();
                 return hay.includes(kw);
             });
             list.sort((a, b) => (b.quoteNo || '').localeCompare(a.quoteNo || ''));
@@ -1064,9 +1068,22 @@
             }
 
             listEl.innerHTML = list.map(q => {
-                let itemCount = (q.items || []).length;
+                let items = q.items || [];
+                let itemCount = items.length;
+                // 用跟真正导入时一样的映射规则生成预览，保证预览里看到的品名/尺寸跟点进去之后是同一套，不会对不上
+                let preview = items
+                    .map(it => mapQuoteItemToOrderItem(it))
+                    .filter(m => m.name || m.size)
+                    .map(m => {
+                        let sizeText = (m.size || '').replace(/\n/g, ' / ');
+                        let qtyText = m.qty ? `×${escapeHtml(String(m.qty))}` : '';
+                        return `${escapeHtml(m.name)}${sizeText ? ' ' + escapeHtml(sizeText) : ''}${qtyText}`;
+                    });
+                let previewLine = preview.length
+                    ? `<br><span style="color:#64748b;">📦 ${preview.slice(0, 4).join('、')}${preview.length > 4 ? `等${preview.length}条` : ''}</span>`
+                    : '';
                 return `<div class="mini-list-item clickable" onclick='selectImportQuote(${JSON.stringify(q.quoteNo)})'>
-                    <div class="info"><b>${escapeHtml(q.quoteNo)}　${escapeHtml(q.customerCompany || '')}</b><span>${escapeHtml(q.series)} ｜ ${formatDate(q.quoteDate)} ｜ ${itemCount}条货品</span></div>
+                    <div class="info"><b>${escapeHtml(q.quoteNo)}　${escapeHtml(q.customerCompany || '')}</b><span>${escapeHtml(q.series)} ｜ ${formatDate(q.quoteDate)} ｜ ${itemCount}条货品${previewLine}</span></div>
                     <span>→</span>
                 </div>`;
             }).join('');
